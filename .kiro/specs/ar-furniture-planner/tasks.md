@@ -1,6 +1,6 @@
 # 実装計画
 
-- [-] 1. プロジェクト基盤とAR初期設定
+- [x] 1. プロジェクト基盤とAR初期設定
   - Xcodeプロジェクトの設定とARKit/RealityKitの統合
   - カメラ許可とARSession基本実装
   - _要件: 1.1, 1.2, 1.3_
@@ -17,7 +17,7 @@
   - ARWorldTrackingConfigurationの設定
   - _要件: 1.1, 1.2_
 
-- [-] 1.3 SwiftUIとARViewの統合
+- [x] 1.3 SwiftUIとARViewの統合
   - ARViewをSwiftUIに統合するためのUIViewRepresentableを実装
   - ContentViewでARViewを表示
   - ARSessionの状態管理とライフサイクル処理
