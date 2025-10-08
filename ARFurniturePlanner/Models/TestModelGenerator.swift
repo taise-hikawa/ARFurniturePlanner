@@ -228,33 +228,45 @@ class TestModelGenerator {
     /// - Parameter furnitureModel: 家具モデル
     /// - Returns: 生成されたModelEntity、対応するモデルがない場合はnil
     static func generateModel(for furnitureModel: FurnitureModel) -> ModelEntity? {
+        print("🔥 テストモデル生成開始: \(furnitureModel.id)")
+        
+        let entity: ModelEntity?
+        
         switch furnitureModel.id {
         case "test_cube_001":
-            return generateTestCube(
+            entity = generateTestCube(
                 size: furnitureModel.realWorldSize.maxDimension,
                 color: .systemBlue
             )
             
         case "test_sphere_001":
-            return generateTestSphere(
+            entity = generateTestSphere(
                 radius: furnitureModel.realWorldSize.maxDimension / 2,
                 color: .systemRed
             )
             
         case "test_table_001":
-            return generateTestTable()
+            entity = generateTestTable()
             
         case "test_chair_001":
-            return generateTestChair()
+            entity = generateTestChair()
             
         default:
             print("警告: \(furnitureModel.id) に対応するテストモデルが見つかりません")
             // デフォルトとしてキューブを返す
-            return generateTestCube(
+            entity = generateTestCube(
                 size: furnitureModel.realWorldSize.maxDimension,
                 color: .systemGray
             )
         }
+        
+        if entity != nil {
+            print("🔥 テストモデル生成成功: \(furnitureModel.id)")
+        } else {
+            print("🔥 テストモデル生成失敗: \(furnitureModel.id)")
+        }
+        
+        return entity
     }
     
     // MARK: - Material Utilities

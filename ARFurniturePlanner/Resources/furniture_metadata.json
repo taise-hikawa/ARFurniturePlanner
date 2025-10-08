@@ -5,7 +5,7 @@
     {
       "id": "test_cube_001",
       "name": "テストキューブ",
-      "category": "test",
+      "category": "テスト",
       "modelFileName": "test_cube.usdz",
       "thumbnailFileName": "test_cube_thumb.jpg",
       "realWorldSize": {
@@ -20,7 +20,7 @@
     {
       "id": "test_sphere_001",
       "name": "テストスフィア",
-      "category": "test",
+      "category": "テスト",
       "modelFileName": "test_sphere.usdz",
       "thumbnailFileName": "test_sphere_thumb.jpg",
       "realWorldSize": {
@@ -35,7 +35,7 @@
     {
       "id": "test_table_001",
       "name": "テストテーブル",
-      "category": "test",
+      "category": "テスト",
       "modelFileName": "test_table.usdz",
       "thumbnailFileName": "test_table_thumb.jpg",
       "realWorldSize": {
@@ -50,7 +50,7 @@
     {
       "id": "test_chair_001",
       "name": "テストチェア",
-      "category": "test",
+      "category": "テスト",
       "modelFileName": "test_chair.usdz",
       "thumbnailFileName": "test_chair_thumb.jpg",
       "realWorldSize": {
@@ -65,7 +65,7 @@
     {
       "id": "sofa_3seat_001",
       "name": "3人掛けソファ",
-      "category": "sofa",
+      "category": "ソファ",
       "modelFileName": "sofa_3seat.usdz",
       "thumbnailFileName": "sofa_3seat_thumb.jpg",
       "realWorldSize": {
@@ -80,7 +80,7 @@
     {
       "id": "table_dining_001",
       "name": "ダイニングテーブル",
-      "category": "table",
+      "category": "テーブル",
       "modelFileName": "table_dining.usdz",
       "thumbnailFileName": "table_dining_thumb.jpg",
       "realWorldSize": {
@@ -95,7 +95,7 @@
     {
       "id": "chair_office_001",
       "name": "オフィスチェア",
-      "category": "chair",
+      "category": "椅子",
       "modelFileName": "chair_office.usdz",
       "thumbnailFileName": "chair_office_thumb.jpg",
       "realWorldSize": {
