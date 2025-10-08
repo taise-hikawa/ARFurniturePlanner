@@ -20,9 +20,10 @@ class TestModelGenerator {
     ///   - size: キューブのサイズ（メートル）
     ///   - color: キューブの色
     /// - Returns: 生成されたModelEntity
+    @MainActor
     static func generateTestCube(size: Float = 0.5, color: UIColor = .systemBlue) -> ModelEntity {
         // キューブメッシュを生成
-        let mesh = MeshResource.generateBox(size: size)
+        let mesh = MeshResource.generateBox(width: size, height: size, depth: size)
         
         // マテリアルを作成
         var material = SimpleMaterial()
@@ -33,8 +34,9 @@ class TestModelGenerator {
         // ModelEntityを作成
         let entity = ModelEntity(mesh: mesh, materials: [material])
         
-        // コリジョン形状を設定
-        entity.generateCollisionShapes(recursive: true)
+        // コリジョン形状を設定（同期的に）
+        let collisionShape = ShapeResource.generateBox(width: size, height: size, depth: size)
+        entity.collision = CollisionComponent(shapes: [collisionShape])
         
         // 名前を設定
         entity.name = "TestCube"
@@ -48,6 +50,7 @@ class TestModelGenerator {
     ///   - radius: 球体の半径（メートル）
     ///   - color: 球体の色
     /// - Returns: 生成されたModelEntity
+    @MainActor
     static func generateTestSphere(radius: Float = 0.3, color: UIColor = .systemRed) -> ModelEntity {
         // 球体メッシュを生成
         let mesh = MeshResource.generateSphere(radius: radius)
@@ -61,8 +64,9 @@ class TestModelGenerator {
         // ModelEntityを作成
         let entity = ModelEntity(mesh: mesh, materials: [material])
         
-        // コリジョン形状を設定
-        entity.generateCollisionShapes(recursive: true)
+        // コリジョン形状を設定（同期的に）
+        let collisionShape = ShapeResource.generateSphere(radius: radius)
+        entity.collision = CollisionComponent(shapes: [collisionShape])
         
         // 名前を設定
         entity.name = "TestSphere"
@@ -77,6 +81,7 @@ class TestModelGenerator {
     ///   - radius: 円柱の半径（メートル）
     ///   - color: 円柱の色
     /// - Returns: 生成されたModelEntity
+    @MainActor
     static func generateTestCylinder(height: Float = 0.8, radius: Float = 0.2, color: UIColor = .systemGreen) -> ModelEntity {
         // 円柱メッシュを生成
         let mesh = MeshResource.generateCylinder(height: height, radius: radius)
@@ -90,8 +95,9 @@ class TestModelGenerator {
         // ModelEntityを作成
         let entity = ModelEntity(mesh: mesh, materials: [material])
         
-        // コリジョン形状を設定
-        entity.generateCollisionShapes(recursive: true)
+        // コリジョン形状を設定（円柱は箱で近似）
+        let collisionShape = ShapeResource.generateBox(width: radius * 2, height: height, depth: radius * 2)
+        entity.collision = CollisionComponent(shapes: [collisionShape])
         
         // 名前を設定
         entity.name = "TestCylinder"
@@ -106,6 +112,7 @@ class TestModelGenerator {
     ///   - depth: 平面の奥行き（メートル）
     ///   - color: 平面の色
     /// - Returns: 生成されたModelEntity
+    @MainActor
     static func generateTestPlane(width: Float = 1.0, depth: Float = 1.0, color: UIColor = .systemYellow) -> ModelEntity {
         // 平面メッシュを生成
         let mesh = MeshResource.generatePlane(width: width, depth: depth)
@@ -119,8 +126,9 @@ class TestModelGenerator {
         // ModelEntityを作成
         let entity = ModelEntity(mesh: mesh, materials: [material])
         
-        // コリジョン形状を設定
-        entity.generateCollisionShapes(recursive: true)
+        // コリジョン形状を設定（同期的に）
+        let collisionShape = ShapeResource.generateBox(width: width, height: 0.01, depth: depth)
+        entity.collision = CollisionComponent(shapes: [collisionShape])
         
         // 名前を設定
         entity.name = "TestPlane"
@@ -133,6 +141,7 @@ class TestModelGenerator {
     
     /// 複合テストモデル（テーブル風）を生成
     /// - Returns: 生成されたModelEntity
+    @MainActor
     static func generateTestTable() -> ModelEntity {
         // テーブル天板
         let tableTop = generateTestPlane(width: 1.2, depth: 0.8, color: .systemBrown)
@@ -167,8 +176,9 @@ class TestModelGenerator {
         let modelEntity = ModelEntity()
         modelEntity.addChild(tableEntity)
         
-        // 全体のコリジョン形状を設定
-        modelEntity.generateCollisionShapes(recursive: true)
+        // 全体のコリジョン形状を設定（テーブル全体のボックス）
+        let tableCollisionShape = ShapeResource.generateBox(width: 1.2, height: 0.75, depth: 0.8)
+        modelEntity.collision = CollisionComponent(shapes: [tableCollisionShape])
         
         print("テストテーブルを生成")
         return modelEntity
@@ -176,6 +186,7 @@ class TestModelGenerator {
     
     /// 複合テストモデル（椅子風）を生成
     /// - Returns: 生成されたModelEntity
+    @MainActor
     static func generateTestChair() -> ModelEntity {
         // 座面
         let seat = generateTestPlane(width: 0.5, depth: 0.5, color: .systemIndigo)
@@ -215,8 +226,9 @@ class TestModelGenerator {
         let modelEntity = ModelEntity()
         modelEntity.addChild(chairEntity)
         
-        // 全体のコリジョン形状を設定
-        modelEntity.generateCollisionShapes(recursive: true)
+        // 全体のコリジョン形状を設定（椅子全体のボックス）
+        let chairCollisionShape = ShapeResource.generateBox(width: 0.5, height: 0.9, depth: 0.5)
+        modelEntity.collision = CollisionComponent(shapes: [chairCollisionShape])
         
         print("テストチェアを生成")
         return modelEntity
@@ -227,6 +239,7 @@ class TestModelGenerator {
     /// 指定された家具モデルに対応するテストモデルを生成
     /// - Parameter furnitureModel: 家具モデル
     /// - Returns: 生成されたModelEntity、対応するモデルがない場合はnil
+    @MainActor
     static func generateModel(for furnitureModel: FurnitureModel) -> ModelEntity? {
         print("🔥 テストモデル生成開始: \(furnitureModel.id)")
         

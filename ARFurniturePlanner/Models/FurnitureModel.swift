@@ -81,7 +81,9 @@ struct FurnitureModel: Identifiable, Codable, Equatable {
     func loadModel() async -> ModelEntity? {
         // テストカテゴリの場合は、プログラム生成モデルを使用
         if category == .test {
-            return loadTestModel()
+            return await MainActor.run {
+                return loadTestModel()
+            }
         }
         
         // 通常のUSDZファイル読み込み
@@ -106,12 +108,15 @@ struct FurnitureModel: Identifiable, Codable, Equatable {
             
             // フォールバック: テストモデルを生成
             print("フォールバック: テストモデルを生成します")
-            return loadTestModel()
+            return await MainActor.run {
+                return loadTestModel()
+            }
         }
     }
     
     /// テストモデルを読み込み
     /// - Returns: 生成されたテストModelEntity
+    @MainActor
     private func loadTestModel() -> ModelEntity? {
         let entity = TestModelGenerator.generateModel(for: self)
         

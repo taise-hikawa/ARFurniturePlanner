@@ -22,6 +22,8 @@ struct ARViewContainer: UIViewRepresentable {
         // ARSessionを開始
         arViewManager.startARSession()
         
+        print("🔥 ARViewContainer: ARViewを作成しました")
+        
         return arView
     }
     
