@@ -98,6 +98,12 @@ struct ContentView: View {
                             .multilineTextAlignment(.center)
                     }
                     
+                    // 家具選択UI（平面検出完了時のみ表示）
+                    if arViewManager.planeDetectionStatus == .found && !arViewManager.furnitureRepository.availableFurniture.isEmpty {
+                        FurnitureSelectionView(arViewManager: arViewManager)
+                            .padding(.bottom, 8)
+                    }
+                    
                     // コントロールボタン
                     HStack(spacing: 20) {
                         Button(action: {
@@ -118,6 +124,28 @@ struct ContentView: View {
                             Image(systemName: arViewManager.showPlaneVisualization ? "eye.fill" : "eye.slash.fill")
                                 .font(.system(size: 40))
                                 .foregroundColor(.white)
+                        }
+                        
+                        // 選択家具削除ボタン
+                        if arViewManager.getSelectedFurnitureCount() > 0 {
+                            Button(action: {
+                                arViewManager.deleteSelectedFurniture()
+                            }) {
+                                Image(systemName: "trash.circle.fill")
+                                    .font(.system(size: 40))
+                                    .foregroundColor(.red)
+                            }
+                        }
+                        
+                        // 全削除ボタン
+                        if arViewManager.getPlacedFurnitureCount() > 0 {
+                            Button(action: {
+                                arViewManager.clearAllFurniture()
+                            }) {
+                                Image(systemName: "clear.fill")
+                                    .font(.system(size: 40))
+                                    .foregroundColor(.orange)
+                            }
                         }
                         
                         Button(action: {

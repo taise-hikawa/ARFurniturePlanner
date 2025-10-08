@@ -26,6 +26,11 @@ class ARViewManager: NSObject, ObservableObject {
     private var arSession: ARSession?
     private var arView: ARView?
     private var planeEntities: [UUID: ModelEntity] = [:]
+    private var placedFurnitureEntities: [PlacedFurnitureEntity] = []
+    
+    // MARK: - Furniture Management Properties
+    @Published var selectedFurnitureModel: FurnitureModel?
+    @Published var furnitureRepository = FurnitureRepository()
     
     // MARK: - Enums
     enum PlaneDetectionStatus: Equatable {
@@ -111,6 +116,21 @@ class ARViewManager: NSObject, ObservableObject {
     func setARView(_ arView: ARView) {
         self.arView = arView
         self.arView?.session = arSession ?? ARSession()
+        
+        // タップジェスチャーを設定
+        setupTapGesture()
+    }
+    
+    // MARK: - Gesture Setup
+    
+    /// タップジェスチャーを設定
+    private func setupTapGesture() {
+        guard let arView = arView else { return }
+        
+        let tapGesture = UITapGestureRecognizer(target: self, action: #selector(handleTap(_:)))
+        arView.addGestureRecognizer(tapGesture)
+        
+        print("タップジェスチャーを設定しました")
     }
     
     // MARK: - Plane Detection Management
@@ -308,6 +328,253 @@ class ARViewManager: NSObject, ObservableObject {
         anchorEntity.addChild(frameEntity)
         
         arView.scene.addAnchor(anchorEntity)
+    }
+    
+    // MARK: - Tap Gesture Handling
+    
+    /// タップジェスチャーを処理
+    /// - Parameter gesture: タップジェスチャー
+    @objc private func handleTap(_ gesture: UITapGestureRecognizer) {
+        guard let arView = arView else { return }
+        
+        let tapLocation = gesture.location(in: arView)
+        
+        // 既存の家具エンティティをタップしたかチェック
+        if let tappedEntity = getTappedFurnitureEntity(at: tapLocation) {
+            handleFurnitureEntityTap(tappedEntity)
+            return
+        }
+        
+        // 平面上への家具配置を試行
+        if let selectedModel = selectedFurnitureModel {
+            attemptFurniturePlacement(at: tapLocation, model: selectedModel)
+        } else {
+            print("配置する家具が選択されていません")
+        }
+    }
+    
+    /// タップされた家具エンティティを取得
+    /// - Parameter location: タップ位置
+    /// - Returns: タップされた家具エンティティ、存在しない場合はnil
+    private func getTappedFurnitureEntity(at location: CGPoint) -> PlacedFurnitureEntity? {
+        guard let arView = arView else { return nil }
+        
+        // レイキャストを実行してエンティティを検索
+        let results = arView.hitTest(location)
+        
+        for result in results {
+            // 家具エンティティまたはその子エンティティかチェック
+            var currentEntity: Entity? = result.entity
+            
+            while currentEntity != nil {
+                if let furnitureEntity = currentEntity as? PlacedFurnitureEntity {
+                    return furnitureEntity
+                }
+                currentEntity = currentEntity?.parent
+            }
+        }
+        
+        return nil
+    }
+    
+    /// 家具エンティティのタップを処理
+    /// - Parameter entity: タップされた家具エンティティ
+    private func handleFurnitureEntityTap(_ entity: PlacedFurnitureEntity) {
+        // 他の家具の選択を解除
+        for furnitureEntity in placedFurnitureEntities {
+            if furnitureEntity != entity {
+                furnitureEntity.deselect()
+            }
+        }
+        
+        // タップされた家具の選択状態を切り替え
+        entity.toggleSelection()
+        
+        print("家具エンティティをタップ: \(entity.furnitureModel.name) (選択: \(entity.isSelected))")
+    }
+    
+    // MARK: - Furniture Placement
+    
+    /// 指定位置への家具配置を試行
+    /// - Parameters:
+    ///   - location: タップ位置
+    ///   - model: 配置する家具モデル
+    private func attemptFurniturePlacement(at location: CGPoint, model: FurnitureModel) {
+        guard let arView = arView else { return }
+        
+        // レイキャストクエリを作成（水平面のみ）
+        let query = arView.makeRaycastQuery(from: location, allowing: .existingPlaneGeometry, alignment: .horizontal)
+        
+        guard let query = query else {
+            print("レイキャストクエリの作成に失敗")
+            return
+        }
+        
+        // レイキャストを実行
+        let results = arView.session.raycast(query)
+        
+        guard let firstResult = results.first else {
+            print("平面が見つかりません。平面検出を確認してください。")
+            return
+        }
+        
+        // ワールド座標での配置位置を計算
+        let transform = firstResult.worldTransform
+        let position = SIMD3<Float>(transform.columns.3.x, transform.columns.3.y, transform.columns.3.z)
+        
+        // 家具モデルを配置
+        Task {
+            await placeFurniture(model: model, at: position)
+        }
+    }
+    
+    /// 家具を指定位置に配置
+    /// - Parameters:
+    ///   - model: 配置する家具モデル
+    ///   - position: 配置位置
+    private func placeFurniture(model: FurnitureModel, at position: SIMD3<Float>) async {
+        print("家具配置を開始: \(model.name) at \(position)")
+        
+        // 家具モデルを読み込み
+        guard let modelEntity = await furnitureRepository.loadModel(model) else {
+            Task { @MainActor in
+                self.errorMessage = "家具モデルの読み込みに失敗しました: \(model.name)"
+            }
+            return
+        }
+        
+        // 床面にスナップした位置を計算
+        let snappedPosition = snapToFloor(position: position, for: model)
+        
+        // PlacedFurnitureEntityを作成
+        let furnitureEntity = PlacedFurnitureEntity(
+            furnitureModel: model,
+            modelEntity: modelEntity,
+            at: snappedPosition
+        )
+        
+        // ARViewに追加
+        guard let arView = arView else { return }
+        
+        let anchorEntity = AnchorEntity(world: snappedPosition)
+        anchorEntity.addChild(furnitureEntity)
+        arView.scene.addAnchor(anchorEntity)
+        
+        // 管理リストに追加
+        placedFurnitureEntities.append(furnitureEntity)
+        
+        print("家具配置完了: \(model.name) at \(snappedPosition)")
+        print("配置済み家具数: \(placedFurnitureEntities.count)")
+    }
+    
+    /// 床面にスナップした位置を計算
+    /// - Parameters:
+    ///   - position: 元の位置
+    ///   - model: 家具モデル
+    /// - Returns: スナップされた位置
+    private func snapToFloor(position: SIMD3<Float>, for model: FurnitureModel) -> SIMD3<Float> {
+        // より正確な床面検出を試行
+        let accurateFloorPosition = findAccurateFloorPosition(near: position)
+        
+        // 家具の高さの半分だけ上に配置（床面に接するように）
+        let heightOffset = model.realWorldSize.height / 2
+        
+        var snappedPosition = accurateFloorPosition ?? position
+        snappedPosition.y += heightOffset
+        
+        print("床面スナップ: \(position) -> \(snappedPosition) (オフセット: \(heightOffset))")
+        return snappedPosition
+    }
+    
+    /// より正確な床面位置を検出
+    /// - Parameter position: 基準位置
+    /// - Returns: 正確な床面位置、検出できない場合はnil
+    private func findAccurateFloorPosition(near position: SIMD3<Float>) -> SIMD3<Float>? {
+        // 検出された平面の中から最も近い平面を探す
+        var closestPlane: ARPlaneAnchor?
+        var closestDistance: Float = Float.greatestFiniteMagnitude
+        
+        for planeAnchor in detectedPlanes.values {
+            // 平面の中心位置を計算
+            let planeCenter = planeAnchor.center
+            let planeWorldPosition = SIMD3<Float>(
+                planeAnchor.transform.columns.3.x + planeCenter.x,
+                planeAnchor.transform.columns.3.y + planeCenter.y,
+                planeAnchor.transform.columns.3.z + planeCenter.z
+            )
+            
+            // 水平距離を計算（Y軸は除外）
+            let horizontalDistance = distance(
+                SIMD2<Float>(position.x, position.z),
+                SIMD2<Float>(planeWorldPosition.x, planeWorldPosition.z)
+            )
+            
+            // 平面の範囲内かチェック
+            let extent = planeAnchor.planeExtent
+            if horizontalDistance <= max(extent.width, extent.height) / 2 {
+                let totalDistance = distance(position, planeWorldPosition)
+                if totalDistance < closestDistance {
+                    closestDistance = totalDistance
+                    closestPlane = planeAnchor
+                }
+            }
+        }
+        
+        // 最も近い平面の表面位置を返す
+        if let plane = closestPlane {
+            let planeY = plane.transform.columns.3.y
+            return SIMD3<Float>(position.x, planeY, position.z)
+        }
+        
+        return nil
+    }
+    
+    // MARK: - Furniture Management
+    
+    /// 選択された家具モデルを設定
+    /// - Parameter model: 選択する家具モデル
+    func selectFurnitureModel(_ model: FurnitureModel) {
+        selectedFurnitureModel = model
+        print("家具モデルを選択: \(model.name)")
+    }
+    
+    /// 選択された家具を削除
+    func deleteSelectedFurniture() {
+        let selectedEntities = placedFurnitureEntities.filter { $0.isSelected }
+        
+        for entity in selectedEntities {
+            // ARViewから削除
+            entity.parent?.removeFromParent()
+            
+            // 管理リストから削除
+            if let index = placedFurnitureEntities.firstIndex(where: { $0.placementId == entity.placementId }) {
+                placedFurnitureEntities.remove(at: index)
+            }
+            
+            print("家具を削除: \(entity.furnitureModel.name)")
+        }
+        
+        print("削除完了。残り家具数: \(placedFurnitureEntities.count)")
+    }
+    
+    /// すべての家具を削除
+    func clearAllFurniture() {
+        for entity in placedFurnitureEntities {
+            entity.parent?.removeFromParent()
+        }
+        
+        placedFurnitureEntities.removeAll()
+        print("すべての家具を削除しました")
+    }
+    
+    /// 配置済み家具の数を取得
+    func getPlacedFurnitureCount() -> Int {
+        return placedFurnitureEntities.count
+    }
+    
+    /// 選択中の家具の数を取得
+    func getSelectedFurnitureCount() -> Int {
+        return placedFurnitureEntities.filter { $0.isSelected }.count
     }
     
     // MARK: - Cleanup
