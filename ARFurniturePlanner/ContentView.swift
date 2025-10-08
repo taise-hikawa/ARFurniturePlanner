@@ -42,6 +42,12 @@ struct ContentView: View {
                         Text(trackingStateText)
                             .font(.caption2)
                             .foregroundColor(.white.opacity(0.8))
+                        
+                        // 平面検出状態表示
+                        Text(planeDetectionStatusText)
+                            .font(.caption2)
+                            .foregroundColor(planeDetectionStatusColor)
+                            .padding(.top, 2)
                     }
                     
                     Spacer()
@@ -54,6 +60,30 @@ struct ContentView: View {
                         endPoint: .bottom
                     )
                 )
+                
+                Spacer()
+                
+                // 平面検出ガイダンス（中央表示）
+                if shouldShowPlaneDetectionGuidance {
+                    VStack(spacing: 16) {
+                        // アニメーション付きインジケーター
+                        PlaneDetectionIndicator(status: arViewManager.planeDetectionStatus)
+                        
+                        // ガイダンスメッセージ
+                        Text(planeDetectionGuidanceText)
+                            .font(.body)
+                            .foregroundColor(.white)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 32)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(.black.opacity(0.7))
+                                    .padding(.horizontal, -16)
+                                    .padding(.vertical, -8)
+                            )
+                    }
+                    .transition(.opacity.combined(with: .scale))
+                }
                 
                 Spacer()
                 
@@ -79,6 +109,14 @@ struct ContentView: View {
                         }) {
                             Image(systemName: arViewManager.isSessionRunning ? "pause.circle.fill" : "play.circle.fill")
                                 .font(.system(size: 50))
+                                .foregroundColor(.white)
+                        }
+                        
+                        Button(action: {
+                            arViewManager.togglePlaneVisualization()
+                        }) {
+                            Image(systemName: arViewManager.showPlaneVisualization ? "eye.fill" : "eye.slash.fill")
+                                .font(.system(size: 40))
                                 .foregroundColor(.white)
                         }
                         
@@ -130,6 +168,138 @@ struct ContentView: View {
             return "再位置特定中..."
         default:
             return "トラッキング状態不明"
+        }
+    }
+    
+    // 平面検出状態のテキスト表示
+    private var planeDetectionStatusText: String {
+        switch arViewManager.planeDetectionStatus {
+        case .searching:
+            return "平面を検索中... (\(arViewManager.detectedPlanes.count)個検出)"
+        case .found:
+            return "平面検出完了 (\(arViewManager.detectedPlanes.count)個)"
+        case .insufficient:
+            return "照明不足 - より明るい場所で試してください"
+        case .failed:
+            return "平面検出に失敗しました"
+        }
+    }
+    
+    // 平面検出状態の色
+    private var planeDetectionStatusColor: Color {
+        switch arViewManager.planeDetectionStatus {
+        case .searching:
+            return .yellow
+        case .found:
+            return .green
+        case .insufficient:
+            return .orange
+        case .failed:
+            return .red
+        }
+    }
+    
+    // 平面検出ガイダンスを表示するかどうか
+    private var shouldShowPlaneDetectionGuidance: Bool {
+        return arViewManager.planeDetectionStatus != .found || arViewManager.detectedPlanes.isEmpty
+    }
+    
+    // 平面検出ガイダンステキスト
+    private var planeDetectionGuidanceText: String {
+        switch arViewManager.planeDetectionStatus {
+        case .searching:
+            return "床や机などの平らな表面にカメラを向けて、ゆっくりと動かしてください"
+        case .found:
+            return "平面が検出されました！タップして家具を配置できます"
+        case .insufficient:
+            return "照明が不足しています。より明るい場所に移動するか、ライトを点けてください"
+        case .failed:
+            return "平面検出に失敗しました。アプリを再起動してもう一度お試しください"
+        }
+    }
+}
+
+// MARK: - PlaneDetectionIndicator View
+struct PlaneDetectionIndicator: View {
+    let status: ARViewManager.PlaneDetectionStatus
+    @State private var isAnimating = false
+    
+    var body: some View {
+        VStack(spacing: 12) {
+            ZStack {
+                // 背景円
+                Circle()
+                    .stroke(Color.white.opacity(0.3), lineWidth: 3)
+                    .frame(width: 80, height: 80)
+                
+                // アニメーション円
+                Circle()
+                    .stroke(indicatorColor, lineWidth: 3)
+                    .frame(width: 80, height: 80)
+                    .scaleEffect(isAnimating ? 1.2 : 1.0)
+                    .opacity(isAnimating ? 0.0 : 1.0)
+                    .animation(
+                        Animation.easeInOut(duration: 1.5).repeatForever(autoreverses: false),
+                        value: isAnimating
+                    )
+                
+                // 中央アイコン
+                Image(systemName: indicatorIcon)
+                    .font(.system(size: 30))
+                    .foregroundColor(indicatorColor)
+            }
+            
+            // ステータステキスト
+            Text(statusText)
+                .font(.headline)
+                .foregroundColor(.white)
+        }
+        .onAppear {
+            if status == .searching {
+                isAnimating = true
+            }
+        }
+        .onChange(of: status) { _, newStatus in
+            isAnimating = (newStatus == .searching)
+        }
+    }
+    
+    private var indicatorColor: Color {
+        switch status {
+        case .searching:
+            return .blue
+        case .found:
+            return .green
+        case .insufficient:
+            return .orange
+        case .failed:
+            return .red
+        }
+    }
+    
+    private var indicatorIcon: String {
+        switch status {
+        case .searching:
+            return "viewfinder"
+        case .found:
+            return "checkmark.circle.fill"
+        case .insufficient:
+            return "lightbulb.slash"
+        case .failed:
+            return "exclamationmark.triangle.fill"
+        }
+    }
+    
+    private var statusText: String {
+        switch status {
+        case .searching:
+            return "平面を検索中..."
+        case .found:
+            return "検出完了"
+        case .insufficient:
+            return "照明不足"
+        case .failed:
+            return "検出失敗"
         }
     }
 }
