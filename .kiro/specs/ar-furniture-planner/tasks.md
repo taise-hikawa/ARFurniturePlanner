@@ -1,11 +1,11 @@
 # 実装計画
 
-- [ ] 1. プロジェクト基盤とAR初期設定
+- [-] 1. プロジェクト基盤とAR初期設定
   - Xcodeプロジェクトの設定とARKit/RealityKitの統合
   - カメラ許可とARSession基本実装
   - _要件: 1.1, 1.2, 1.3_
 
-- [ ] 1.1 Xcodeプロジェクト設定とフレームワーク統合
+- [x] 1.1 Xcodeプロジェクト設定とフレームワーク統合
   - ARKit、RealityKit、SwiftUIフレームワークをインポート
   - Info.plistにカメラ使用許可（NSCameraUsageDescription）を追加
   - ARKit対応デバイスの要件設定

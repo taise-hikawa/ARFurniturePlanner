@@ -6,8 +6,15 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		D5225B8E2E96B7E100EE641A /* ARKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D5225B902E96B7E100EE641A /* ARKit.framework */; };
+		D5225B8F2E96B7E100EE641A /* RealityKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D5225B912E96B7E100EE641A /* RealityKit.framework */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		D5225B802E96B7DE00EE641A /* ARFurniturePlanner.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ARFurniturePlanner.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		D5225B902E96B7E100EE641A /* ARKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ARKit.framework; path = System/Library/Frameworks/ARKit.framework; sourceTree = SDKROOT; };
+		D5225B912E96B7E100EE641A /* RealityKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = RealityKit.framework; path = System/Library/Frameworks/RealityKit.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -23,6 +30,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D5225B8E2E96B7E100EE641A /* ARKit.framework in Frameworks */,
+				D5225B8F2E96B7E100EE641A /* RealityKit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -34,6 +43,7 @@
 			children = (
 				D5225B822E96B7DE00EE641A /* ARFurniturePlanner */,
 				D5225B812E96B7DE00EE641A /* Products */,
+				D5225B922E96B7E100EE641A /* Frameworks */,
 			);
 			sourceTree = "<group>";
 		};
@@ -43,6 +53,15 @@
 				D5225B802E96B7DE00EE641A /* ARFurniturePlanner.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		D5225B922E96B7E100EE641A /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				D5225B902E96B7E100EE641A /* ARKit.framework */,
+				D5225B912E96B7E100EE641A /* RealityKit.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -256,9 +275,11 @@
 				DEVELOPMENT_TEAM = 3Z2LN23FC2;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "このアプリはAR機能を使用して家具を配置するためにカメラへのアクセスが必要です。";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIRequiredDeviceCapabilities = arkit;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -284,9 +305,11 @@
 				DEVELOPMENT_TEAM = 3Z2LN23FC2;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "このアプリはAR機能を使用して家具を配置するためにカメラへのアクセスが必要です。";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIRequiredDeviceCapabilities = arkit;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (
