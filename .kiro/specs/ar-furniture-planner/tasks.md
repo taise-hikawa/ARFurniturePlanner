@@ -11,13 +11,13 @@
   - ARKit対応デバイスの要件設定
   - _要件: 1.1, 1.4_
 
-- [ ] 1.2 ARViewManagerクラスの基本実装
+- [x] 1.2 ARViewManagerクラスの基本実装
   - ARViewManagerクラスを作成し、ObservableObjectプロトコルに準拠
   - ARSessionの初期化、開始、停止メソッドを実装
   - ARWorldTrackingConfigurationの設定
   - _要件: 1.1, 1.2_
 
-- [ ] 1.3 SwiftUIとARViewの統合
+- [-] 1.3 SwiftUIとARViewの統合
   - ARViewをSwiftUIに統合するためのUIViewRepresentableを実装
   - ContentViewでARViewを表示
   - ARSessionの状態管理とライフサイクル処理
