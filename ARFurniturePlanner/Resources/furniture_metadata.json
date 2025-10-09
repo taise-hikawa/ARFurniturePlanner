@@ -1,6 +1,26 @@
 {
-  "version": "1.0",
+  "version": "1.1",
   "lastUpdated": "2025-10-09",
+  "metadata": {
+    "description": "AR家具プランナー用家具メタデータ",
+    "defaultDimensions": {
+      "width": 1.0,
+      "height": 1.0,
+      "depth": 1.0
+    },
+    "defaultScaling": {
+      "defaultScale": 1.0,
+      "maxScale": 2.0,
+      "minScale": 0.3
+    },
+    "supportedCategories": [
+      "ソファ",
+      "テーブル", 
+      "椅子",
+      "収納",
+      "テスト"
+    ]
+  },
   "furniture": [
     {
       "id": "test_cube_001",
@@ -15,7 +35,15 @@
       },
       "defaultScale": 1.0,
       "maxScale": 2.0,
-      "minScale": 0.5
+      "minScale": 0.5,
+      "metadata": {
+        "description": "基本的な立方体モデル（テスト用）",
+        "tags": ["テスト", "基本形状", "立方体"],
+        "materialType": "プラスチック",
+        "weight": 1.0,
+        "scalingStrategy": "uniform",
+        "accuracyLevel": "high"
+      }
     },
     {
       "id": "test_sphere_001",
@@ -30,7 +58,15 @@
       },
       "defaultScale": 1.0,
       "maxScale": 2.0,
-      "minScale": 0.5
+      "minScale": 0.5,
+      "metadata": {
+        "description": "基本的な球体モデル（テスト用）",
+        "tags": ["テスト", "基本形状", "球体"],
+        "materialType": "プラスチック",
+        "weight": 0.8,
+        "scalingStrategy": "uniform",
+        "accuracyLevel": "high"
+      }
     },
     {
       "id": "test_table_001",
@@ -45,7 +81,15 @@
       },
       "defaultScale": 1.0,
       "maxScale": 1.5,
-      "minScale": 0.7
+      "minScale": 0.7,
+      "metadata": {
+        "description": "シンプルなテーブルモデル（テスト用）",
+        "tags": ["テスト", "テーブル", "家具"],
+        "materialType": "木材",
+        "weight": 15.0,
+        "scalingStrategy": "uniform",
+        "accuracyLevel": "medium"
+      }
     },
     {
       "id": "test_chair_001",
@@ -60,7 +104,15 @@
       },
       "defaultScale": 1.0,
       "maxScale": 1.3,
-      "minScale": 0.8
+      "minScale": 0.8,
+      "metadata": {
+        "description": "シンプルな椅子モデル（テスト用）",
+        "tags": ["テスト", "椅子", "家具"],
+        "materialType": "木材",
+        "weight": 8.0,
+        "scalingStrategy": "uniform",
+        "accuracyLevel": "medium"
+      }
     },
     {
       "id": "sofa_3seat_001",
@@ -75,7 +127,15 @@
       },
       "defaultScale": 1.0,
       "maxScale": 1.5,
-      "minScale": 0.5
+      "minScale": 0.5,
+      "metadata": {
+        "description": "快適な3人掛けソファ",
+        "tags": ["ソファ", "リビング", "3人掛け"],
+        "materialType": "ファブリック",
+        "weight": 45.0,
+        "scalingStrategy": "uniform",
+        "accuracyLevel": "high"
+      }
     },
     {
       "id": "table_dining_001",
@@ -90,7 +150,15 @@
       },
       "defaultScale": 1.0,
       "maxScale": 1.5,
-      "minScale": 0.7
+      "minScale": 0.7,
+      "metadata": {
+        "description": "4人用ダイニングテーブル",
+        "tags": ["テーブル", "ダイニング", "4人用"],
+        "materialType": "木材",
+        "weight": 25.0,
+        "scalingStrategy": "uniform",
+        "accuracyLevel": "high"
+      }
     },
     {
       "id": "chair_office_001",
@@ -105,7 +173,15 @@
       },
       "defaultScale": 1.0,
       "maxScale": 1.3,
-      "minScale": 0.8
+      "minScale": 0.8,
+      "metadata": {
+        "description": "エルゴノミクスオフィスチェア",
+        "tags": ["椅子", "オフィス", "エルゴノミクス"],
+        "materialType": "メッシュ",
+        "weight": 12.0,
+        "scalingStrategy": "uniform",
+        "accuracyLevel": "high"
+      }
     }
   ]
 }
