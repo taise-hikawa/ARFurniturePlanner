@@ -153,6 +153,24 @@ class FurnitureRepository: ObservableObject {
         print("モデルキャッシュをクリアしました")
     }
     
+    /// 未使用のキャッシュをクリア（パフォーマンス最適化用）
+    func clearUnusedCache() {
+        let halfCacheSize = maxCacheSize / 2
+        
+        // キャッシュサイズが半分以下の場合は何もしない
+        if modelCache.count <= halfCacheSize {
+            return
+        }
+        
+        // 古いエントリから削除
+        let removeCount = modelCache.count - halfCacheSize
+        for _ in 0..<removeCount {
+            evictLeastRecentlyUsed()
+        }
+        
+        print("未使用キャッシュをクリア: \(removeCount)個のエントリを削除")
+    }
+    
     // MARK: - Furniture Filtering and Search
     
     /// カテゴリ別に家具を取得
