@@ -10,6 +10,12 @@ import RealityKit
 import simd
 import UIKit
 
+// MARK: - Notification Names
+
+extension Notification.Name {
+    static let furnitureSelectionChanged = Notification.Name("furnitureSelectionChanged")
+}
+
 /// 配置された家具のエンティティを管理するクラス
 class PlacedFurnitureEntity: Entity, HasModel, HasCollision {
     
@@ -28,9 +34,26 @@ class PlacedFurnitureEntity: Entity, HasModel, HasCollision {
             if newValue != isSelectedState {
                 isSelectedState = newValue
                 updateHighlight()
+                // Notify about selection change for gesture handling
+                NotificationCenter.default.post(
+                    name: .furnitureSelectionChanged,
+                    object: self,
+                    userInfo: ["isSelected": newValue]
+                )
             }
         }
     }
+    
+    // MARK: - Gesture Support Properties
+    
+    /// ジェスチャー操作中かどうかを示すフラグ
+    private(set) var isBeingManipulated: Bool = false
+    
+    /// 最後のジェスチャー操作時刻（パフォーマンス監視用）
+    private var lastGestureTime: Date = Date()
+    
+    /// ジェスチャー操作の開始位置（ドラッグ用）
+    private var gestureStartPosition: SIMD3<Float>?
     
     // MARK: - Initialization
     
@@ -405,6 +428,89 @@ class PlacedFurnitureEntity: Entity, HasModel, HasCollision {
         スケール: \(scale)
         選択状態: \(isSelected)
         """
+    }
+    
+    // MARK: - Gesture Manipulation Support
+    
+    /// ジェスチャー操作の開始を通知
+    func beginGestureManipulation() {
+        isBeingManipulated = true
+        gestureStartPosition = position
+        lastGestureTime = Date()
+        
+        // 操作中は少し明るくハイライト
+        if isSelected {
+            updateHighlightForManipulation(true)
+        }
+        
+        print("ジェスチャー操作開始: \(furnitureModel.name)")
+    }
+    
+    /// ジェスチャー操作の終了を通知
+    func endGestureManipulation() {
+        isBeingManipulated = false
+        gestureStartPosition = nil
+        
+        // 通常のハイライトに戻す
+        if isSelected {
+            updateHighlightForManipulation(false)
+        }
+        
+        print("ジェスチャー操作終了: \(furnitureModel.name)")
+    }
+    
+    /// 操作中のハイライト表示を更新
+    /// - Parameter isManipulating: 操作中かどうか
+    private func updateHighlightForManipulation(_ isManipulating: Bool) {
+        guard let highlight = highlightEntity else { return }
+        
+        if isManipulating {
+            // 操作中は少し明るく、大きく
+            var material = SimpleMaterial()
+            material.color = .init(tint: .systemBlue.withAlphaComponent(0.5))
+            material.roughness = MaterialScalarParameter(floatLiteral: 0.0)
+            material.metallic = MaterialScalarParameter(floatLiteral: 1.0)
+            highlight.model?.materials = [material]
+            highlight.scale = SIMD3<Float>(repeating: 1.08) // 8%大きく
+        } else {
+            // 通常のハイライト
+            showHighlight()
+        }
+    }
+    
+    /// ジェスチャー操作のパフォーマンスを監視
+    /// - Returns: 最後の操作からの経過時間（秒）
+    func getGesturePerformanceMetrics() -> TimeInterval {
+        return Date().timeIntervalSince(lastGestureTime)
+    }
+    
+    /// スケール制限を適用してスケール値を検証
+    /// - Parameter proposedScale: 提案されたスケール値
+    /// - Returns: 制限を適用したスケール値
+    func validateScale(_ proposedScale: Float) -> Float {
+        return max(furnitureModel.minScale, min(furnitureModel.maxScale, proposedScale))
+    }
+    
+    /// Y軸回転のみを許可する回転値を検証
+    /// - Parameter proposedRotation: 提案された回転クォータニオン
+    /// - Returns: Y軸回転のみに制限された回転クォータニオン
+    func validateRotation(_ proposedRotation: simd_quatf) -> simd_quatf {
+        // Y軸回転のみを抽出
+        let yRotation = atan2(2.0 * (proposedRotation.vector.w * proposedRotation.vector.y + proposedRotation.vector.x * proposedRotation.vector.z),
+                             1.0 - 2.0 * (proposedRotation.vector.y * proposedRotation.vector.y + proposedRotation.vector.z * proposedRotation.vector.z))
+        
+        return simd_quatf(angle: yRotation, axis: SIMD3<Float>(0, 1, 0))
+    }
+    
+    /// 平面上の位置に制限する位置値を検証
+    /// - Parameters:
+    ///   - proposedPosition: 提案された位置
+    ///   - planeY: 平面のY座標
+    /// - Returns: 平面上に制限された位置
+    func validatePosition(_ proposedPosition: SIMD3<Float>, onPlaneY planeY: Float) -> SIMD3<Float> {
+        // Y座標を平面に固定し、家具の高さの半分だけ上に配置
+        let adjustedY = planeY + furnitureModel.realWorldSize.height / 2
+        return SIMD3<Float>(proposedPosition.x, adjustedY, proposedPosition.z)
     }
     
     // MARK: - Cleanup
