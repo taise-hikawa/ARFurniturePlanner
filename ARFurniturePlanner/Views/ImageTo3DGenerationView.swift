@@ -11,23 +11,20 @@ import PhotosUI
 struct ImageTo3DGenerationView: View {
     @Binding var isPresented: Bool
     @Binding var selectedImage: UIImage?
+    @Binding var selectedTab: Int  // 親ビューのタブ選択を制御
     @State private var furnitureName = ""
     @State private var selectedStyle = GenerationSettings.GenerationStyle.realistic
-    @State private var selectedQuality = GenerationSettings.GenerationQuality.standard
+    @State private var selectedQuality = GenerationSettings.GenerationQuality.high
     @State private var autoScale = true
     @State private var estimatedWidth: String = "50"
     @State private var estimatedHeight: String = "80"
     @State private var estimatedDepth: String = "50"
     @State private var showingImagePicker = false
     @State private var showingImageSourceSelection = false
-    @State private var isGenerating = false
-    @State private var generationProgress: Double = 0
-    @State private var generationStatus = "準備中..."
     @State private var currentTaskId: String?
     @State private var showingError = false
     @State private var errorMessage = ""
     @State private var showingAPISettings = false
-    @State private var isModelSaved = false
     @StateObject private var apiService = MeshyAPIService.shared
     @StateObject private var modelManager = GeneratedModelManager.shared
     @EnvironmentObject var repository: FurnitureRepository
@@ -230,7 +227,7 @@ struct ImageTo3DGenerationView: View {
                             showingAPISettings = true
                         }
                     }
-                    .disabled(selectedImage == nil || furnitureName.isEmpty || isGenerating)
+                    .disabled(selectedImage == nil || furnitureName.isEmpty)
                 }
             }
             .sheet(isPresented: $showingImageSourceSelection) {
@@ -246,17 +243,6 @@ struct ImageTo3DGenerationView: View {
                 Button("OK", role: .cancel) { }
             } message: {
                 Text(errorMessage)
-            }
-            .overlay {
-                if isGenerating {
-                    GenerationProgressOverlay(
-                        progress: generationProgress,
-                        status: generationStatus,
-                        onCancel: {
-                            cancelGeneration()
-                        }
-                    )
-                }
             }
         }
     }
@@ -279,11 +265,6 @@ struct ImageTo3DGenerationView: View {
     private func startGeneration() {
         guard let image = selectedImage else { return }
         
-        isGenerating = true
-        isModelSaved = false
-        generationProgress = 0
-        generationStatus = "画像をアップロード中..."
-        
         let settings = GenerationSettings(
             style: selectedStyle,
             quality: selectedQuality,
@@ -300,7 +281,6 @@ struct ImageTo3DGenerationView: View {
                 // APIキーの再確認
                 if !apiService.hasValidAPIKey() {
                     await MainActor.run {
-                        isGenerating = false
                         errorMessage = "APIキーが設定されていません"
                         showingError = true
                         showingAPISettings = true
@@ -317,12 +297,14 @@ struct ImageTo3DGenerationView: View {
                 
                 currentTaskId = task.id
                 
-                // タスクの進捗を監視
-                await monitorTaskProgress(taskId: task.id)
+                // シートを閉じて「生成中」タブに切り替え
+                await MainActor.run {
+                    isPresented = false
+                    selectedTab = 2  // 生成中タブに切り替え
+                }
                 
             } catch let meshyError as MeshyAPIError {
                 await MainActor.run {
-                    isGenerating = false
                     errorMessage = meshyError.errorDescription ?? "生成エラー"
                     showingError = true
                     
@@ -333,7 +315,6 @@ struct ImageTo3DGenerationView: View {
                 }
             } catch {
                 await MainActor.run {
-                    isGenerating = false
                     errorMessage = "エラー: \(error.localizedDescription)"
                     showingError = true
                     print("Generation error: \(error)")
@@ -341,246 +322,12 @@ struct ImageTo3DGenerationView: View {
             }
         }
     }
-    
-    private func monitorTaskProgress(taskId: String) async {
-        var retryCount = 0
-        let maxRetries = 60 // 最大5分間監視
-        
-        while retryCount < maxRetries {
-            do {
-                let task = try await apiService.getTaskStatus(taskId: taskId)
-                
-                await MainActor.run {
-                    // 進捗を更新
-                    if let progress = task.progress {
-                        generationProgress = Double(progress) / 100.0
-                    }
-                    
-                    // ステータスを更新
-                    switch task.status {
-                    case .pending:
-                        generationStatus = "待機中..."
-                    case .inProgress:
-                        if generationProgress < 0.3 {
-                            generationStatus = "3Dモデルを生成中..."
-                        } else if generationProgress < 0.7 {
-                            generationStatus = "テクスチャを生成中..."
-                        } else {
-                            generationStatus = "最終処理中..."
-                        }
-                    case .succeeded:
-                        generationStatus = "完了！"
-                        isGenerating = false
-                        if !isModelSaved {
-                            isModelSaved = true
-                            Task {
-                                await saveGeneratedModel(task: task)
-                            }
-                        }
-                        return
-                    case .failed:
-                        isGenerating = false
-                        errorMessage = "生成に失敗しました"
-                        showingError = true
-                        return
-                    case .canceled:
-                        isGenerating = false
-                        return
-                    case .expired:
-                        isGenerating = false
-                        errorMessage = "タスクの有効期限が切れました"
-                        showingError = true
-                        return
-                    }
-                }
-                
-                // 5秒待機して再チェック
-                try await Task.sleep(nanoseconds: 5_000_000_000)
-                retryCount += 1
-                
-            } catch {
-                await MainActor.run {
-                    isGenerating = false
-                    errorMessage = error.localizedDescription
-                    showingError = true
-                }
-                return
-            }
-        }
-        
-        // タイムアウト
-        await MainActor.run {
-            isGenerating = false
-            errorMessage = "生成がタイムアウトしました"
-            showingError = true
-        }
-    }
-    
-    private func saveGeneratedModel(task: MeshyTaskData) async {
-        do {
-            let settings = GenerationSettings(
-                style: selectedStyle,
-                quality: selectedQuality,
-                enablePBR: true,
-                shouldRemesh: true,
-                shouldTexture: true,
-                targetPolycount: selectedQuality.targetPolycount,
-                symmetryMode: nil,
-                texturePrompt: nil
-            )
-            
-            let generatedModel = try await modelManager.saveGeneratedModel(
-                from: task,
-                name: furnitureName,
-                sourceImage: selectedImage,
-                settings: settings
-            )
-            
-            // 生成されたモデルをFurnitureModelに変換
-            let furnitureModel = createFurnitureModel(from: generatedModel)
-            
-            await MainActor.run {
-                // リポジトリに追加
-                repository.addGeneratedModel(furnitureModel)
-                
-                isGenerating = false
-                isPresented = false
-            }
-            
-        } catch {
-            await MainActor.run {
-                isGenerating = false
-                errorMessage = "モデルの保存に失敗しました: \(error.localizedDescription)"
-                showingError = true
-            }
-        }
-    }
-    
-    private func createFurnitureModel(from generatedModel: GeneratedFurnitureModel) -> FurnitureModel {
-        // 推定サイズをメートルに変換
-        let width = Float(estimatedWidth) ?? 50.0
-        let height = Float(estimatedHeight) ?? 80.0
-        let depth = Float(estimatedDepth) ?? 50.0
-        
-        let realWorldSize = FurnitureModel.RealWorldSize(
-            width: width / 100.0,  // cm to m
-            height: height / 100.0,
-            depth: depth / 100.0
-        )
-        
-        // カテゴリを自動判定（簡易実装）
-        let category: FurnitureCategory
-        if furnitureName.contains("椅子") || furnitureName.contains("チェア") {
-            category = .chair
-        } else if furnitureName.contains("テーブル") {
-            category = .table
-        } else if furnitureName.contains("ソファ") {
-            category = .sofa
-        } else if furnitureName.contains("収納") || furnitureName.contains("棚") {
-            category = .storage
-        } else {
-            category = .test // デフォルト
-        }
-        
-        return FurnitureModel(
-            id: generatedModel.id,
-            name: generatedModel.name,
-            category: category,
-            modelFileName: generatedModel.localModelPath ?? "",
-            thumbnailFileName: generatedModel.thumbnailPath ?? "",
-            realWorldSize: realWorldSize,
-            defaultScale: 1.0,
-            maxScale: 2.0,
-            minScale: 0.5,
-            metadata: FurnitureModel.FurnitureMetadata(
-                description: "Meshy AIで生成された\(furnitureName)",
-                tags: ["生成", "カスタム", furnitureName, "meshy-generated"],
-                materialType: "3D生成",
-                weight: nil,
-                scalingStrategy: "uniform",
-                accuracyLevel: selectedQuality.rawValue
-            )
-        )
-    }
-    
-    private func cancelGeneration() {
-        guard let taskId = currentTaskId else {
-            isGenerating = false
-            return
-        }
-        
-        Task {
-            do {
-                try await apiService.cancelTask(taskId: taskId)
-                await MainActor.run {
-                    isGenerating = false
-                }
-            } catch {
-                print("Failed to cancel task: \(error)")
-                await MainActor.run {
-                    isGenerating = false
-                }
-            }
-        }
-    }
-}
-
-// MARK: - 生成進捗オーバーレイ
-struct GenerationProgressOverlay: View {
-    let progress: Double
-    let status: String
-    let onCancel: () -> Void
-    
-    var body: some View {
-        ZStack {
-            Color.black.opacity(0.7)
-                .ignoresSafeArea()
-            
-            VStack(spacing: 24) {
-                // プログレスインジケーター
-                ZStack {
-                    Circle()
-                        .stroke(Color.white.opacity(0.2), lineWidth: 8)
-                        .frame(width: 100, height: 100)
-                    
-                    Circle()
-                        .trim(from: 0, to: progress)
-                        .stroke(Color.blue, style: StrokeStyle(lineWidth: 8, lineCap: .round))
-                        .frame(width: 100, height: 100)
-                        .rotationEffect(.degrees(-90))
-                        .animation(.easeInOut, value: progress)
-                    
-                    Text("\(Int(progress * 100))%")
-                        .font(.title2)
-                        .fontWeight(.bold)
-                        .foregroundColor(.white)
-                }
-                
-                Text(status)
-                    .font(.headline)
-                    .foregroundColor(.white)
-                
-                Button(action: onCancel) {
-                    Text("キャンセル")
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 12)
-                        .background(Color.red)
-                        .foregroundColor(.white)
-                        .cornerRadius(25)
-                }
-            }
-            .padding(32)
-            .background(
-                RoundedRectangle(cornerRadius: 20)
-                    .fill(Color.black.opacity(0.8))
-            )
-        }
-    }
 }
 
 #Preview {
     ImageTo3DGenerationView(
         isPresented: .constant(true),
-        selectedImage: .constant(nil)
+        selectedImage: .constant(nil),
+        selectedTab: .constant(0)
     )
 }

@@ -80,7 +80,7 @@ class MeshyAPIService: ObservableObject {
             enablePBR: settings.enablePBR,
             shouldRemesh: settings.shouldRemesh,
             shouldTexture: settings.shouldTexture,
-            aiModel: "meshy-5",
+            aiModel: "latest",
             targetPolycount: settings.quality.targetPolycount,
             symmetryMode: settings.symmetryMode?.rawValue,
             texturePrompt: combineTexturePrompts(settings: settings)

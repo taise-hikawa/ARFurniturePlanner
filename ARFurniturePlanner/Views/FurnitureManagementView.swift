@@ -124,7 +124,8 @@ struct FurnitureManagementView: View {
             .sheet(isPresented: $showingImageTo3D) {
                 ImageTo3DGenerationView(
                     isPresented: $showingImageTo3D,
-                    selectedImage: $selectedImage
+                    selectedImage: $selectedImage,
+                    selectedTab: $selectedTab
                 )
                 .environmentObject(furnitureRepository)
             }

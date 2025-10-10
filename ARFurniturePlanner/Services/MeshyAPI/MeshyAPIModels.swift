@@ -35,7 +35,7 @@ struct ImageTo3DRequest: Codable {
         shouldRemesh: Bool = true,
         shouldTexture: Bool = true,
         aiModel: String? = "meshy-5",
-        targetPolycount: Int? = 50000,
+        targetPolycount: Int? = 300000,
         symmetryMode: String? = nil,
         texturePrompt: String? = nil
     ) {
@@ -252,9 +252,9 @@ struct GenerationSettings {
         
         var targetPolycount: Int {
             switch self {
-            case .draft: return 10000
-            case .standard: return 50000
-            case .high: return 100000
+            case .draft: return 50000
+            case .standard: return 100000
+            case .high: return 300000
             }
         }
         
