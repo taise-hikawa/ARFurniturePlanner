@@ -10,13 +10,14 @@ import PhotosUI
 
 struct FurnitureManagementView: View {
     @StateObject private var furnitureRepository = FurnitureRepository()
+    @StateObject private var modelManager = GeneratedModelManager.shared
+    @StateObject private var apiService = MeshyAPIService.shared
     @State private var selectedTab = 0
     @State private var showingImageTo3D = false
     @State private var selectedImage: UIImage?
-    @State private var isGenerating = false
-    @State private var generationProgress: Double = 0
     @State private var showingARView = false
     @State private var searchText = ""
+    @State private var showingAPISettings = false
     
     var body: some View {
         NavigationView {
@@ -56,9 +57,32 @@ struct FurnitureManagementView: View {
                 
                 // 下部ボタン
                 VStack(spacing: 16) {
+                    // APIキー設定が必要な場合の表示
+                    if !apiService.hasValidAPIKey() {
+                        Button(action: {
+                            showingAPISettings = true
+                        }) {
+                            HStack {
+                                Image(systemName: "key.fill")
+                                    .font(.system(size: 20))
+                                Text("APIキーを設定")
+                                    .fontWeight(.semibold)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.orange)
+                            .foregroundColor(.white)
+                            .cornerRadius(12)
+                        }
+                    }
+                    
                     // 画像から3D生成ボタン
                     Button(action: {
-                        showingImageTo3D = true
+                        if apiService.hasValidAPIKey() {
+                            showingImageTo3D = true
+                        } else {
+                            showingAPISettings = true
+                        }
                     }) {
                         HStack {
                             Image(systemName: "photo")
@@ -68,7 +92,7 @@ struct FurnitureManagementView: View {
                         }
                         .frame(maxWidth: .infinity)
                         .padding()
-                        .background(Color.blue)
+                        .background(apiService.hasValidAPIKey() ? Color.blue : Color.gray)
                         .foregroundColor(.white)
                         .cornerRadius(12)
                     }
@@ -102,6 +126,9 @@ struct FurnitureManagementView: View {
             }
             .fullScreenCover(isPresented: $showingARView) {
                 ContentView()
+            }
+            .sheet(isPresented: $showingAPISettings) {
+                MeshyAPISettingsView()
             }
         }
     }
@@ -141,17 +168,7 @@ struct LibraryTabView: View {
 
 // MARK: - 生成済みタブ
 struct GeneratedTabView: View {
-    @State private var generatedFurniture: [GeneratedFurniture] = [
-        // モックデータ
-        GeneratedFurniture(
-            id: UUID(),
-            name: "カスタムチェア1",
-            thumbnailImage: "chair_generated_1",
-            modelPath: "chair_generated_1.usdz",
-            generatedDate: Date(),
-            status: .completed
-        )
-    ]
+    @StateObject private var modelManager = GeneratedModelManager.shared
     
     private let columns = [
         GridItem(.flexible()),
@@ -159,7 +176,7 @@ struct GeneratedTabView: View {
     ]
     
     var body: some View {
-        if generatedFurniture.isEmpty {
+        if modelManager.generatedModels.isEmpty {
             VStack(spacing: 20) {
                 Image(systemName: "cube.transparent")
                     .font(.system(size: 60))
@@ -177,8 +194,8 @@ struct GeneratedTabView: View {
         } else {
             ScrollView {
                 LazyVGrid(columns: columns, spacing: 16) {
-                    ForEach(generatedFurniture) { furniture in
-                        GeneratedFurnitureItem(furniture: furniture)
+                    ForEach(modelManager.generatedModels) { model in
+                        GeneratedModelItem(model: model)
                     }
                 }
                 .padding()
@@ -189,10 +206,10 @@ struct GeneratedTabView: View {
 
 // MARK: - 生成中タブ
 struct GeneratingTabView: View {
-    @State private var generatingTasks: [GenerationTask] = []
+    @StateObject private var apiService = MeshyAPIService.shared
     
     var body: some View {
-        if generatingTasks.isEmpty {
+        if apiService.activeTasks.isEmpty {
             VStack(spacing: 20) {
                 Image(systemName: "clock.arrow.circlepath")
                     .font(.system(size: 60))
@@ -206,8 +223,8 @@ struct GeneratingTabView: View {
         } else {
             ScrollView {
                 VStack(spacing: 16) {
-                    ForEach(generatingTasks) { task in
-                        GenerationTaskRow(task: task)
+                    ForEach(Array(apiService.activeTasks.values).sorted(by: { $0.createdAt > $1.createdAt })) { task in
+                        ActiveGenerationTaskRow(task: task)
                     }
                 }
                 .padding()
@@ -256,10 +273,12 @@ struct FurnitureGridItem: View {
     }
 }
 
-// MARK: - 生成済み家具アイテム
-struct GeneratedFurnitureItem: View {
-    let furniture: GeneratedFurniture
+// MARK: - 生成済みモデルアイテム
+struct GeneratedModelItem: View {
+    let model: GeneratedFurnitureModel
+    @StateObject private var modelManager = GeneratedModelManager.shared
     @State private var showingOptions = false
+    @State private var thumbnail: UIImage?
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -267,11 +286,20 @@ struct GeneratedFurnitureItem: View {
             RoundedRectangle(cornerRadius: 12)
                 .fill(Color.gray.opacity(0.2))
                 .overlay(
-                    Image(systemName: "cube.fill")
-                        .font(.system(size: 40))
-                        .foregroundColor(.gray)
+                    Group {
+                        if let thumbnail = thumbnail {
+                            Image(uiImage: thumbnail)
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                        } else {
+                            Image(systemName: "cube.fill")
+                                .font(.system(size: 40))
+                                .foregroundColor(.gray)
+                        }
+                    }
                 )
                 .aspectRatio(1, contentMode: .fit)
+                .clipped()
                 .overlay(alignment: .topTrailing) {
                     Button(action: {
                         showingOptions = true
@@ -286,18 +314,21 @@ struct GeneratedFurnitureItem: View {
                 }
             
             // 家具名
-            Text(furniture.name)
+            Text(model.name)
                 .font(.headline)
                 .lineLimit(1)
             
             // 生成日時
-            Text(furniture.generatedDate, style: .date)
+            Text(model.generatedDate, style: .date)
                 .font(.caption)
                 .foregroundColor(.gray)
         }
         .padding(12)
         .background(Color(.systemGray6))
         .cornerRadius(12)
+        .onAppear {
+            thumbnail = modelManager.loadThumbnail(for: model)
+        }
         .actionSheet(isPresented: $showingOptions) {
             ActionSheet(
                 title: Text("オプション"),
@@ -306,7 +337,7 @@ struct GeneratedFurnitureItem: View {
                         // TODO: 名前変更処理
                     },
                     .destructive(Text("削除")) {
-                        // TODO: 削除処理
+                        modelManager.deleteModel(model)
                     },
                     .cancel()
                 ]
@@ -315,49 +346,52 @@ struct GeneratedFurnitureItem: View {
     }
 }
 
-// MARK: - 生成タスク行
-struct GenerationTaskRow: View {
-    let task: GenerationTask
+// MARK: - アクティブな生成タスク行
+struct ActiveGenerationTaskRow: View {
+    let task: MeshyTaskData
+    @StateObject private var apiService = MeshyAPIService.shared
     
     var body: some View {
         HStack(spacing: 16) {
-            // サムネイル
-            if let image = task.sourceImage {
-                Image(uiImage: image)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
+            // プログレスインジケーター
+            ZStack {
+                Circle()
+                    .stroke(Color.gray.opacity(0.2), lineWidth: 4)
                     .frame(width: 60, height: 60)
-                    .cornerRadius(8)
-            } else {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Color.gray.opacity(0.2))
+                
+                Circle()
+                    .trim(from: 0, to: Double(task.progress ?? 0) / 100)
+                    .stroke(Color.blue, style: StrokeStyle(lineWidth: 4, lineCap: .round))
                     .frame(width: 60, height: 60)
+                    .rotationEffect(.degrees(-90))
+                
+                Text("\(task.progress ?? 0)%")
+                    .font(.caption)
+                    .fontWeight(.bold)
             }
             
             VStack(alignment: .leading, spacing: 4) {
-                Text(task.name)
+                Text("モデル生成中")
                     .font(.headline)
                 
-                // 進捗バー
-                ProgressView(value: task.progress)
-                    .progressViewStyle(LinearProgressViewStyle())
+                Text(task.status.displayName)
+                    .font(.caption)
+                    .foregroundColor(.gray)
                 
-                HStack {
-                    Text(task.statusText)
-                        .font(.caption)
-                        .foregroundColor(.gray)
-                    
-                    Spacer()
-                    
-                    Text("\(Int(task.progress * 100))%")
-                        .font(.caption)
+                if let startedAt = task.startedAtDate {
+                    Text("開始: \(startedAt, style: .relative)")
+                        .font(.caption2)
                         .foregroundColor(.gray)
                 }
             }
             
+            Spacer()
+            
             // キャンセルボタン
             Button(action: {
-                // TODO: キャンセル処理
+                Task {
+                    try? await apiService.cancelTask(taskId: task.id)
+                }
             }) {
                 Image(systemName: "xmark.circle.fill")
                     .font(.system(size: 24))
@@ -368,31 +402,6 @@ struct GenerationTaskRow: View {
         .background(Color(.systemGray6))
         .cornerRadius(12)
     }
-}
-
-// MARK: - データモデル
-struct GeneratedFurniture: Identifiable {
-    let id: UUID
-    var name: String
-    let thumbnailImage: String
-    let modelPath: String
-    let generatedDate: Date
-    let status: GenerationStatus
-}
-
-struct GenerationTask: Identifiable {
-    let id: UUID
-    let name: String
-    let sourceImage: UIImage?
-    let progress: Double
-    let statusText: String
-    let startTime: Date
-}
-
-enum GenerationStatus {
-    case generating
-    case completed
-    case failed
 }
 
 // MARK: - Image Picker

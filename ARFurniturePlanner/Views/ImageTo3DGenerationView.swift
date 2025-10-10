@@ -12,8 +12,8 @@ struct ImageTo3DGenerationView: View {
     @Binding var isPresented: Bool
     @Binding var selectedImage: UIImage?
     @State private var furnitureName = ""
-    @State private var selectedStyle = GenerationStyle.realistic
-    @State private var selectedQuality = GenerationQuality.medium
+    @State private var selectedStyle = GenerationSettings.GenerationStyle.realistic
+    @State private var selectedQuality = GenerationSettings.GenerationQuality.standard
     @State private var autoScale = true
     @State private var estimatedWidth: String = "50"
     @State private var estimatedHeight: String = "80"
@@ -22,19 +22,12 @@ struct ImageTo3DGenerationView: View {
     @State private var isGenerating = false
     @State private var generationProgress: Double = 0
     @State private var generationStatus = "準備中..."
-    
-    enum GenerationStyle: String, CaseIterable {
-        case realistic = "リアル"
-        case stylized = "スタイライズ"
-        case lowPoly = "ローポリ"
-        case cartoon = "カートゥーン"
-    }
-    
-    enum GenerationQuality: String, CaseIterable {
-        case draft = "ドラフト"
-        case medium = "標準"
-        case high = "高品質"
-    }
+    @State private var currentTaskId: String?
+    @State private var showingError = false
+    @State private var errorMessage = ""
+    @State private var showingAPISettings = false
+    @StateObject private var apiService = MeshyAPIService.shared
+    @StateObject private var modelManager = GeneratedModelManager.shared
     
     var body: some View {
         NavigationView {
@@ -112,8 +105,8 @@ struct ImageTo3DGenerationView: View {
                                 .foregroundColor(.gray)
                             
                             Picker("スタイル", selection: $selectedStyle) {
-                                ForEach(GenerationStyle.allCases, id: \.self) { style in
-                                    Text(style.rawValue).tag(style)
+                                ForEach(GenerationSettings.GenerationStyle.allCases, id: \.self) { style in
+                                    Text(style.displayName).tag(style)
                                 }
                             }
                             .pickerStyle(SegmentedPickerStyle())
@@ -126,8 +119,8 @@ struct ImageTo3DGenerationView: View {
                                 .foregroundColor(.gray)
                             
                             Picker("品質", selection: $selectedQuality) {
-                                ForEach(GenerationQuality.allCases, id: \.self) { quality in
-                                    Text(quality.rawValue).tag(quality)
+                                ForEach(GenerationSettings.GenerationQuality.allCases, id: \.self) { quality in
+                                    Text(quality.displayName).tag(quality)
                                 }
                             }
                             .pickerStyle(SegmentedPickerStyle())
@@ -228,13 +221,25 @@ struct ImageTo3DGenerationView: View {
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("生成開始") {
-                        startGeneration()
+                        if apiService.hasValidAPIKey() {
+                            startGeneration()
+                        } else {
+                            showingAPISettings = true
+                        }
                     }
                     .disabled(selectedImage == nil || furnitureName.isEmpty || isGenerating)
                 }
             }
             .sheet(isPresented: $showingImagePicker) {
                 ImagePicker(selectedImage: $selectedImage)
+            }
+            .sheet(isPresented: $showingAPISettings) {
+                MeshyAPISettingsView()
+            }
+            .alert("エラー", isPresented: $showingError) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(errorMessage)
             }
             .overlay {
                 if isGenerating {
@@ -251,21 +256,14 @@ struct ImageTo3DGenerationView: View {
     }
     
     private var estimatedTime: String {
-        switch selectedQuality {
-        case .draft:
-            return "1-2分"
-        case .medium:
-            return "3-5分"
-        case .high:
-            return "5-10分"
-        }
+        return selectedQuality.estimatedTime
     }
     
     private var estimatedCost: String {
         switch selectedQuality {
         case .draft:
             return "¥50"
-        case .medium:
+        case .standard:
             return "¥100"
         case .high:
             return "¥200"
@@ -273,42 +271,193 @@ struct ImageTo3DGenerationView: View {
     }
     
     private func startGeneration() {
+        guard let image = selectedImage else { return }
+        
         isGenerating = true
         generationProgress = 0
         generationStatus = "画像をアップロード中..."
         
-        // TODO: 実際のMeshy API呼び出し
-        // 現在はモック処理
-        simulateGeneration()
-    }
-    
-    private func simulateGeneration() {
-        Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { timer in
-            generationProgress += 0.01
-            
-            if generationProgress < 0.2 {
-                generationStatus = "画像をアップロード中..."
-            } else if generationProgress < 0.5 {
-                generationStatus = "3Dモデルを生成中..."
-            } else if generationProgress < 0.8 {
-                generationStatus = "テクスチャを最適化中..."
-            } else if generationProgress < 0.95 {
-                generationStatus = "最終処理中..."
-            } else {
-                generationStatus = "完了！"
-                timer.invalidate()
+        let settings = GenerationSettings(
+            style: selectedStyle,
+            quality: selectedQuality,
+            enablePBR: true,
+            shouldRemesh: true,
+            shouldTexture: true,
+            targetPolycount: selectedQuality.targetPolycount,
+            symmetryMode: nil,
+            texturePrompt: nil
+        )
+        
+        Task {
+            do {
+                // APIキーの再確認
+                if !apiService.hasValidAPIKey() {
+                    await MainActor.run {
+                        isGenerating = false
+                        errorMessage = "APIキーが設定されていません"
+                        showingError = true
+                        showingAPISettings = true
+                    }
+                    return
+                }
                 
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                // Meshy APIを呼び出してタスクを作成
+                let task = try await apiService.createImageTo3DTask(
+                    image: image,
+                    settings: settings,
+                    furnitureName: furnitureName
+                )
+                
+                currentTaskId = task.id
+                
+                // タスクの進捗を監視
+                await monitorTaskProgress(taskId: task.id)
+                
+            } catch let meshyError as MeshyAPIError {
+                await MainActor.run {
                     isGenerating = false
-                    isPresented = false
+                    errorMessage = meshyError.errorDescription ?? "生成エラー"
+                    showingError = true
+                    
+                    // APIキーエラーの場合は設定画面を表示
+                    if case .invalidAPIKey = meshyError {
+                        showingAPISettings = true
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    isGenerating = false
+                    errorMessage = "エラー: \(error.localizedDescription)"
+                    showingError = true
+                    print("Generation error: \(error)")
                 }
             }
         }
     }
     
+    private func monitorTaskProgress(taskId: String) async {
+        var retryCount = 0
+        let maxRetries = 60 // 最大5分間監視
+        
+        while retryCount < maxRetries {
+            do {
+                let task = try await apiService.getTaskStatus(taskId: taskId)
+                
+                await MainActor.run {
+                    // 進捗を更新
+                    if let progress = task.progress {
+                        generationProgress = Double(progress) / 100.0
+                    }
+                    
+                    // ステータスを更新
+                    switch task.status {
+                    case .pending:
+                        generationStatus = "待機中..."
+                    case .inProgress:
+                        if generationProgress < 0.3 {
+                            generationStatus = "3Dモデルを生成中..."
+                        } else if generationProgress < 0.7 {
+                            generationStatus = "テクスチャを生成中..."
+                        } else {
+                            generationStatus = "最終処理中..."
+                        }
+                    case .succeeded:
+                        generationStatus = "完了！"
+                        Task {
+                            await saveGeneratedModel(task: task)
+                        }
+                        return
+                    case .failed:
+                        isGenerating = false
+                        errorMessage = "生成に失敗しました"
+                        showingError = true
+                        return
+                    case .canceled:
+                        isGenerating = false
+                        return
+                    case .expired:
+                        isGenerating = false
+                        errorMessage = "タスクの有効期限が切れました"
+                        showingError = true
+                        return
+                    }
+                }
+                
+                // 5秒待機して再チェック
+                try await Task.sleep(nanoseconds: 5_000_000_000)
+                retryCount += 1
+                
+            } catch {
+                await MainActor.run {
+                    isGenerating = false
+                    errorMessage = error.localizedDescription
+                    showingError = true
+                }
+                return
+            }
+        }
+        
+        // タイムアウト
+        await MainActor.run {
+            isGenerating = false
+            errorMessage = "生成がタイムアウトしました"
+            showingError = true
+        }
+    }
+    
+    private func saveGeneratedModel(task: MeshyTaskData) async {
+        do {
+            let settings = GenerationSettings(
+                style: selectedStyle,
+                quality: selectedQuality,
+                enablePBR: true,
+                shouldRemesh: true,
+                shouldTexture: true,
+                targetPolycount: selectedQuality.targetPolycount,
+                symmetryMode: nil,
+                texturePrompt: nil
+            )
+            
+            _ = try await modelManager.saveGeneratedModel(
+                from: task,
+                name: furnitureName,
+                sourceImage: selectedImage,
+                settings: settings
+            )
+            
+            await MainActor.run {
+                isGenerating = false
+                isPresented = false
+            }
+            
+        } catch {
+            await MainActor.run {
+                isGenerating = false
+                errorMessage = "モデルの保存に失敗しました: \(error.localizedDescription)"
+                showingError = true
+            }
+        }
+    }
+    
     private func cancelGeneration() {
-        isGenerating = false
-        // TODO: 実際のキャンセル処理
+        guard let taskId = currentTaskId else {
+            isGenerating = false
+            return
+        }
+        
+        Task {
+            do {
+                try await apiService.cancelTask(taskId: taskId)
+                await MainActor.run {
+                    isGenerating = false
+                }
+            } catch {
+                print("Failed to cancel task: \(error)")
+                await MainActor.run {
+                    isGenerating = false
+                }
+            }
+        }
     }
 }
 
