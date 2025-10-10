@@ -17,10 +17,24 @@ struct ImageSourcePicker: UIViewControllerRepresentable {
     
     func makeUIViewController(context: Context) -> UIViewController {
         if sourceType == .camera {
+            // カメラが利用可能か確認
+            guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
+                print("Camera is not available on this device")
+                // カメラが使えない場合はフォトライブラリにフォールバック
+                var config = PHPickerConfiguration()
+                config.filter = .images
+                config.selectionLimit = 1
+                let picker = PHPickerViewController(configuration: config)
+                picker.delegate = context.coordinator
+                return picker
+            }
+            
             let imagePicker = UIImagePickerController()
             imagePicker.sourceType = .camera
             imagePicker.delegate = context.coordinator
             imagePicker.allowsEditing = false
+            imagePicker.cameraCaptureMode = .photo
+            imagePicker.cameraDevice = .rear
             return imagePicker
         } else {
             var config = PHPickerConfiguration()
@@ -86,6 +100,9 @@ struct ImageSourceSelectionView: View {
     @State private var showImagePicker = false
     @State private var sourceType: UIImagePickerController.SourceType = .photoLibrary
     @State private var showCameraPermissionAlert = false
+    @State private var showCameraNotAvailableAlert = false
+    @State private var showCamera = false
+    @State private var showPhotoLibrary = false
     
     var body: some View {
         NavigationView {
@@ -106,6 +123,7 @@ struct ImageSourceSelectionView: View {
                 VStack(spacing: 16) {
                     // カメラオプション
                     Button(action: {
+                        print("Camera button tapped")
                         checkCameraPermissionAndProceed()
                     }) {
                         HStack {
@@ -134,8 +152,8 @@ struct ImageSourceSelectionView: View {
                     
                     // フォトライブラリオプション
                     Button(action: {
-                        sourceType = .photoLibrary
-                        showImagePicker = true
+                        print("Photo library button tapped")
+                        showPhotoLibrary = true
                     }) {
                         HStack {
                             Image(systemName: "photo.fill")
@@ -175,8 +193,12 @@ struct ImageSourceSelectionView: View {
                 }
             }
         }
-        .sheet(isPresented: $showImagePicker) {
-            ImageSourcePicker(selectedImage: $selectedImage, sourceType: sourceType)
+        .sheet(isPresented: $showCamera) {
+            ImageSourcePicker(selectedImage: $selectedImage, sourceType: .camera)
+                .ignoresSafeArea()
+        }
+        .sheet(isPresented: $showPhotoLibrary) {
+            ImageSourcePicker(selectedImage: $selectedImage, sourceType: .photoLibrary)
                 .ignoresSafeArea()
         }
         .alert("カメラへのアクセス", isPresented: $showCameraPermissionAlert) {
@@ -189,6 +211,11 @@ struct ImageSourceSelectionView: View {
         } message: {
             Text("カメラを使用するには、設定でカメラへのアクセスを許可してください。")
         }
+        .alert("カメラが利用できません", isPresented: $showCameraNotAvailableAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("このデバイスではカメラを使用できません。シミュレーターを使用している場合は、実機でテストしてください。")
+        }
         .onChange(of: selectedImage) { _ in
             if selectedImage != nil {
                 isPresented = false
@@ -197,24 +224,35 @@ struct ImageSourceSelectionView: View {
     }
     
     private func checkCameraPermissionAndProceed() {
+        // まずカメラが利用可能か確認
+        guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
+            showCameraNotAvailableAlert = true
+            return
+        }
+        
         let status = AVCaptureDevice.authorizationStatus(for: .video)
         
         switch status {
         case .authorized:
-            sourceType = .camera
-            showImagePicker = true
+            print("Camera permission authorized, opening camera...")
+            showCamera = true
         case .notDetermined:
+            print("Camera permission not determined, requesting...")
             AVCaptureDevice.requestAccess(for: .video) { granted in
                 DispatchQueue.main.async {
                     if granted {
-                        sourceType = .camera
-                        showImagePicker = true
+                        print("Camera permission granted, opening camera...")
+                        self.showCamera = true
+                    } else {
+                        print("Camera permission denied by user")
                     }
                 }
             }
         case .denied, .restricted:
+            print("Camera permission denied or restricted")
             showCameraPermissionAlert = true
         @unknown default:
+            print("Unknown camera permission status")
             break
         }
     }
