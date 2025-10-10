@@ -21,6 +21,14 @@ class MeshyAPIService: ObservableObject {
     @Published var activeTasks: [String: MeshyTaskData] = [:]
     @Published var generationHistory: [MeshyTaskData] = []
     
+    // タスクごとの生成情報を保持
+    private struct TaskGenerationInfo {
+        let furnitureName: String
+        let sourceImage: UIImage?
+        let settings: GenerationSettings
+    }
+    private var taskGenerationInfo: [String: TaskGenerationInfo] = [:]
+    
     private init() {
         loadAPIKey()
         loadGenerationHistory()
@@ -163,6 +171,13 @@ class MeshyAPIService: ObservableObject {
         // アクティブタスクに追加
         DispatchQueue.main.async {
             self.activeTasks[taskId] = taskData
+            
+            // タスク情報を保存
+            self.taskGenerationInfo[taskId] = TaskGenerationInfo(
+                furnitureName: furnitureName,
+                sourceImage: image,
+                settings: settings
+            )
         }
         
         // タスクの進捗を監視開始
@@ -214,9 +229,19 @@ class MeshyAPIService: ObservableObject {
             // 完了したタスクは履歴に追加
             if taskData.status.isCompleted {
                 self.activeTasks.removeValue(forKey: taskData.id)
+                // 監視を停止
+                self.stopMonitoringTask(taskId: taskData.id)
+                
                 if taskData.status == .succeeded {
                     self.generationHistory.insert(taskData, at: 0)
                     self.saveGenerationHistory()
+                    
+                    // 生成されたモデルを保存
+                    Task {
+                        await self.handleSuccessfulGeneration(task: taskData)
+                    }
+                } else if taskData.status == .failed {
+                    print("タスク失敗: \(taskData.taskError?.message ?? "Unknown error")")
                 }
             }
         }
@@ -248,32 +273,48 @@ class MeshyAPIService: ObservableObject {
             throw MeshyAPIError.serverError("Failed to cancel task")
         }
         
-        // アクティブタスクから削除
+        // アクティブタスクから削除と監視停止
         DispatchQueue.main.async {
             self.activeTasks.removeValue(forKey: taskId)
+            self.stopMonitoringTask(taskId: taskId)
         }
     }
     
     // MARK: - Task Monitoring
     
+    private var taskMonitoringCancellables: [String: AnyCancellable] = [:]
+    
     private func startMonitoringTask(taskId: String, furnitureName: String) {
-        Timer.publish(every: 3.0, on: .main, in: .common)
+        let cancellable = Timer.publish(every: 3.0, on: .main, in: .common)
             .autoconnect()
             .sink { [weak self] _ in
                 Task {
+                    guard let self = self else { return }
+                    
                     do {
-                        let taskData = try await self?.getTaskStatus(taskId: taskId)
+                        let taskData = try await self.getTaskStatus(taskId: taskId)
                         
                         // タスクが完了したらタイマーを停止
-                        if taskData?.status.isCompleted == true {
-                            // キャンセル処理はgetTaskStatus内で行われる
+                        if taskData.status.isCompleted {
+                            self.stopMonitoringTask(taskId: taskId)
                         }
                     } catch {
                         print("Task monitoring error: \(error)")
+                        // Task not foundエラーの場合は監視を停止
+                        if case MeshyAPIError.serverError(let message) = error,
+                           message.contains("Task not found") {
+                            self.stopMonitoringTask(taskId: taskId)
+                        }
                     }
                 }
             }
-            .store(in: &cancellables)
+        
+        taskMonitoringCancellables[taskId] = cancellable
+    }
+    
+    private func stopMonitoringTask(taskId: String) {
+        taskMonitoringCancellables[taskId]?.cancel()
+        taskMonitoringCancellables.removeValue(forKey: taskId)
     }
     
     // MARK: - Model Download
@@ -318,6 +359,47 @@ class MeshyAPIService: ObservableObject {
         }
         
         return prompts.isEmpty ? nil : prompts.joined(separator: ", ")
+    }
+    
+    // MARK: - Model Saving
+    
+    private func handleSuccessfulGeneration(task: MeshyTaskData) async {
+        do {
+            // タスクに関連する情報を取得
+            let taskInfo = taskGenerationInfo[task.id]
+            let furnitureName = taskInfo?.furnitureName ?? "生成モデル"
+            let settings = taskInfo?.settings ?? GenerationSettings(
+                style: .realistic,
+                quality: .high,
+                enablePBR: true,
+                shouldRemesh: true,
+                shouldTexture: true,
+                targetPolycount: 300000,
+                symmetryMode: nil,
+                texturePrompt: nil
+            )
+            
+            // GeneratedModelManagerを使用してモデルを保存
+            let generatedModel = try await GeneratedModelManager.shared.saveGeneratedModel(
+                from: task,
+                name: furnitureName,
+                sourceImage: taskInfo?.sourceImage,
+                settings: settings
+            )
+            
+            // FurnitureRepositoryに同期
+            await MainActor.run {
+                FurnitureRepository.shared.syncGeneratedModels()
+            }
+            
+            print("モデルの保存に成功: \(generatedModel.name)")
+            
+            // タスク情報をクリーンアップ
+            taskGenerationInfo.removeValue(forKey: task.id)
+            
+        } catch {
+            print("モデルの保存に失敗: \(error)")
+        }
     }
     
     // MARK: - History Management

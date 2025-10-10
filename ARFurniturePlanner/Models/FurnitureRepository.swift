@@ -32,6 +32,7 @@ class FurnitureRepository: ObservableObject {
     private init() {
         Task {
             await loadFurnitureDatabase()
+            syncGeneratedModels()
         }
     }
     
@@ -326,6 +327,15 @@ class FurnitureRepository: ObservableObject {
     }
     
     // MARK: - Generated Models Management
+    
+    /// GeneratedModelManagerから生成されたモデルを同期
+    func syncGeneratedModels() {
+        let generatedManager = GeneratedModelManager.shared
+        generatedFurniture = generatedManager.generatedModels.compactMap { generatedModel in
+            generatedManager.convertToFurnitureModel(generatedModel)
+        }
+        print("生成モデルを同期: \(generatedFurniture.count)個のモデル")
+    }
     
     /// 生成されたモデルを追加
     func addGeneratedModel(_ model: FurnitureModel) {
