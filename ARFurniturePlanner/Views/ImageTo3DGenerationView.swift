@@ -177,36 +177,6 @@ struct ImageTo3DGenerationView: View {
                                 .foregroundColor(.orange)
                         }
                     }
-                    
-                    // 生成情報
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack {
-                            Image(systemName: "info.circle")
-                            Text("生成について")
-                        }
-                        .font(.headline)
-                        
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack {
-                                Image(systemName: "clock")
-                                    .font(.caption)
-                                Text("推定時間: \(estimatedTime)")
-                                    .font(.caption)
-                            }
-                            .foregroundColor(.gray)
-                            
-                            HStack {
-                                Image(systemName: "dollarsign.circle")
-                                    .font(.caption)
-                                Text("推定コスト: \(estimatedCost)")
-                                    .font(.caption)
-                            }
-                            .foregroundColor(.gray)
-                        }
-                        .padding()
-                        .background(Color.gray.opacity(0.1))
-                        .cornerRadius(8)
-                    }
                 }
                 .padding()
             }
@@ -244,21 +214,6 @@ struct ImageTo3DGenerationView: View {
             } message: {
                 Text(errorMessage)
             }
-        }
-    }
-    
-    private var estimatedTime: String {
-        return selectedQuality.estimatedTime
-    }
-    
-    private var estimatedCost: String {
-        switch selectedQuality {
-        case .draft:
-            return "¥50"
-        case .standard:
-            return "¥100"
-        case .high:
-            return "¥200"
         }
     }
     

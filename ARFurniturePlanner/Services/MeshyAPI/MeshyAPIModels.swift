@@ -257,14 +257,6 @@ struct GenerationSettings {
             case .high: return 300000
             }
         }
-        
-        var estimatedTime: String {
-            switch self {
-            case .draft: return "1-2分"
-            case .standard: return "3-5分"
-            case .high: return "5-10分"
-            }
-        }
     }
     
     enum SymmetryMode: String {
