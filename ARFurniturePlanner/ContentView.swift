@@ -11,6 +11,7 @@ import RealityKit
 
 struct ContentView: View {
     @StateObject private var arViewManager = ARViewManager()
+    @State private var isFurnitureSelectionExpanded = true
     
     var body: some View {
         ZStack {
@@ -100,8 +101,39 @@ struct ContentView: View {
                     
                     // 家具選択UI（平面検出完了時のみ表示）
                     if arViewManager.planeDetectionStatus == .found && !arViewManager.furnitureRepository.availableFurniture.isEmpty {
-                        FurnitureSelectionView(arViewManager: arViewManager)
-                            .padding(.bottom, 8)
+                        VStack(spacing: 8) {
+                            // 開閉トグルボタン
+                            Button(action: {
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                    isFurnitureSelectionExpanded.toggle()
+                                }
+                            }) {
+                                HStack {
+                                    Image(systemName: isFurnitureSelectionExpanded ? "chevron.down" : "chevron.up")
+                                        .font(.system(size: 14, weight: .semibold))
+                                    Text(isFurnitureSelectionExpanded ? "家具選択を隠す" : "家具選択を表示")
+                                        .font(.caption)
+                                        .fontWeight(.medium)
+                                }
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 20)
+                                        .fill(Color.black.opacity(0.6))
+                                )
+                            }
+                            
+                            // 家具選択ビュー（展開時のみ表示）
+                            if isFurnitureSelectionExpanded {
+                                FurnitureSelectionView(arViewManager: arViewManager, isExpanded: $isFurnitureSelectionExpanded)
+                                    .transition(.asymmetric(
+                                        insertion: .move(edge: .bottom).combined(with: .opacity),
+                                        removal: .move(edge: .bottom).combined(with: .opacity)
+                                    ))
+                            }
+                        }
+                        .padding(.bottom, 8)
                     }
                     
                     // コントロールボタン

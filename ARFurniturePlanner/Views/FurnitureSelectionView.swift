@@ -10,6 +10,7 @@ import SwiftUI
 /// 家具選択UIコンポーネント
 struct FurnitureSelectionView: View {
     @ObservedObject var arViewManager: ARViewManager
+    @Binding var isExpanded: Bool
     
     var body: some View {
         VStack(spacing: 12) {
@@ -47,6 +48,10 @@ struct FurnitureSelectionView: View {
                             isSelected: arViewManager.selectedFurnitureModel?.id == furniture.id,
                             onTap: {
                                 arViewManager.selectFurnitureModel(furniture)
+                                // 家具選択後、UIを自動的に折りたたむ
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                    isExpanded = false
+                                }
                             }
                         )
                     }
@@ -143,7 +148,7 @@ struct FurnitureSelectionCard: View {
         
         VStack {
             Spacer()
-            FurnitureSelectionView(arViewManager: ARViewManager())
+            FurnitureSelectionView(arViewManager: ARViewManager(), isExpanded: .constant(true))
                 .padding()
         }
     }
