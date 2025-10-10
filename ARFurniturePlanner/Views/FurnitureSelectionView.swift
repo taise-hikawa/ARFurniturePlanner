@@ -42,7 +42,7 @@ struct FurnitureSelectionView: View {
             // 家具選択スクロールビュー
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 16) {
-                    ForEach(arViewManager.furnitureRepository.availableFurniture) { furniture in
+                    ForEach(arViewManager.furnitureRepository.getAllFurniture()) { furniture in
                         FurnitureSelectionCard(
                             furniture: furniture,
                             isSelected: arViewManager.selectedFurnitureModel?.id == furniture.id,
@@ -60,10 +60,10 @@ struct FurnitureSelectionView: View {
             }
         }
         .onAppear {
-            // 初期選択（最初のテスト家具を選択）
+            // 初期選択（最初の家具を選択）
             if arViewManager.selectedFurnitureModel == nil,
-               let firstTestFurniture = arViewManager.furnitureRepository.availableFurniture.first(where: { $0.category == .test }) {
-                arViewManager.selectFurnitureModel(firstTestFurniture)
+               let firstFurniture = arViewManager.furnitureRepository.getAllFurniture().first {
+                arViewManager.selectFurnitureModel(firstFurniture)
             }
         }
     }

@@ -13,10 +13,14 @@ import Combine
 @MainActor
 class FurnitureRepository: ObservableObject {
     
+    // MARK: - Singleton Instance
+    static let shared = FurnitureRepository()
+    
     // MARK: - Published Properties
     @Published var availableFurniture: [FurnitureModel] = []
     @Published var isLoading = false
     @Published var errorMessage: String?
+    @Published var generatedFurniture: [FurnitureModel] = []
     
     // MARK: - Private Properties
     private var modelCache: [String: ModelEntity] = [:]
@@ -25,7 +29,7 @@ class FurnitureRepository: ObservableObject {
     private var databaseMetadata: FurnitureDatabase.DatabaseMetadata?
     
     // MARK: - Initialization
-    init() {
+    private init() {
         Task {
             await loadFurnitureDatabase()
         }
@@ -319,6 +323,27 @@ class FurnitureRepository: ObservableObject {
     func getAvailableCategories() -> [FurnitureCategory] {
         let categories = Set(availableFurniture.map { $0.category })
         return Array(categories).sorted { $0.rawValue < $1.rawValue }
+    }
+    
+    // MARK: - Generated Models Management
+    
+    /// 生成されたモデルを追加
+    func addGeneratedModel(_ model: FurnitureModel) {
+        // 重複チェック
+        if !generatedFurniture.contains(where: { $0.id == model.id }) {
+            generatedFurniture.append(model)
+            print("生成モデルを追加: \(model.name)")
+        }
+    }
+    
+    /// すべての家具を取得（JSONファイルと生成されたモデルの両方）
+    func getAllFurniture() -> [FurnitureModel] {
+        return availableFurniture + generatedFurniture
+    }
+    
+    /// カテゴリ別にすべての家具を取得（JSONファイルと生成されたモデルの両方）
+    func getAllFurniture(by category: FurnitureCategory) -> [FurnitureModel] {
+        return getAllFurniture().filter { $0.category == category }
     }
     
     // MARK: - Statistics

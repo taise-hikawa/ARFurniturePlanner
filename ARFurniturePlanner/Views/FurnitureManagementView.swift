@@ -9,7 +9,7 @@ import SwiftUI
 import PhotosUI
 
 struct FurnitureManagementView: View {
-    @StateObject private var furnitureRepository = FurnitureRepository()
+    @StateObject private var furnitureRepository = FurnitureRepository.shared
     @StateObject private var modelManager = GeneratedModelManager.shared
     @StateObject private var apiService = MeshyAPIService.shared
     @State private var selectedTab = 0
@@ -118,11 +118,15 @@ struct FurnitureManagementView: View {
             }
             .navigationTitle("家具管理")
             .navigationBarTitleDisplayMode(.large)
+            .onAppear {
+                syncGeneratedModelsToRepository()
+            }
             .sheet(isPresented: $showingImageTo3D) {
                 ImageTo3DGenerationView(
                     isPresented: $showingImageTo3D,
                     selectedImage: $selectedImage
                 )
+                .environmentObject(furnitureRepository)
             }
             .fullScreenCover(isPresented: $showingARView) {
                 ContentView()
@@ -130,6 +134,34 @@ struct FurnitureManagementView: View {
             .sheet(isPresented: $showingAPISettings) {
                 MeshyAPISettingsView()
             }
+        }
+    }
+    
+    // 生成済みモデルをFurnitureRepositoryに同期
+    private func syncGeneratedModelsToRepository() {
+        for generatedModel in modelManager.generatedModels {
+            // FurnitureModelに変換
+            let furnitureModel = FurnitureModel(
+                id: generatedModel.id,
+                name: generatedModel.name,
+                category: .test, // デフォルトカテゴリ
+                modelFileName: generatedModel.localModelPath ?? "",
+                thumbnailFileName: generatedModel.thumbnailPath,
+                realWorldSize: FurnitureModel.RealWorldSize(width: 1.0, height: 1.0, depth: 1.0),
+                defaultScale: 1.0,
+                maxScale: 2.0,
+                minScale: 0.5,
+                metadata: FurnitureModel.FurnitureMetadata(
+                    description: "Meshy AIで生成された家具",
+                    tags: ["生成", "カスタム", "meshy-generated"],
+                    materialType: "3D生成",
+                    weight: nil,
+                    scalingStrategy: "uniform",
+                    accuracyLevel: generatedModel.metadata.quality
+                )
+            )
+            
+            furnitureRepository.addGeneratedModel(furnitureModel)
         }
     }
 }

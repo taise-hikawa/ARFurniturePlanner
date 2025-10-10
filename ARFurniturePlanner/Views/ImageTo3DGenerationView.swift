@@ -26,8 +26,10 @@ struct ImageTo3DGenerationView: View {
     @State private var showingError = false
     @State private var errorMessage = ""
     @State private var showingAPISettings = false
+    @State private var isModelSaved = false
     @StateObject private var apiService = MeshyAPIService.shared
     @StateObject private var modelManager = GeneratedModelManager.shared
+    @EnvironmentObject var repository: FurnitureRepository
     
     var body: some View {
         NavigationView {
@@ -274,6 +276,7 @@ struct ImageTo3DGenerationView: View {
         guard let image = selectedImage else { return }
         
         isGenerating = true
+        isModelSaved = false
         generationProgress = 0
         generationStatus = "画像をアップロード中..."
         
@@ -363,8 +366,12 @@ struct ImageTo3DGenerationView: View {
                         }
                     case .succeeded:
                         generationStatus = "完了！"
-                        Task {
-                            await saveGeneratedModel(task: task)
+                        isGenerating = false
+                        if !isModelSaved {
+                            isModelSaved = true
+                            Task {
+                                await saveGeneratedModel(task: task)
+                            }
                         }
                         return
                     case .failed:
@@ -418,14 +425,20 @@ struct ImageTo3DGenerationView: View {
                 texturePrompt: nil
             )
             
-            _ = try await modelManager.saveGeneratedModel(
+            let generatedModel = try await modelManager.saveGeneratedModel(
                 from: task,
                 name: furnitureName,
                 sourceImage: selectedImage,
                 settings: settings
             )
             
+            // 生成されたモデルをFurnitureModelに変換
+            let furnitureModel = createFurnitureModel(from: generatedModel)
+            
             await MainActor.run {
+                // リポジトリに追加
+                repository.addGeneratedModel(furnitureModel)
+                
                 isGenerating = false
                 isPresented = false
             }
@@ -437,6 +450,53 @@ struct ImageTo3DGenerationView: View {
                 showingError = true
             }
         }
+    }
+    
+    private func createFurnitureModel(from generatedModel: GeneratedFurnitureModel) -> FurnitureModel {
+        // 推定サイズをメートルに変換
+        let width = Float(estimatedWidth) ?? 50.0
+        let height = Float(estimatedHeight) ?? 80.0
+        let depth = Float(estimatedDepth) ?? 50.0
+        
+        let realWorldSize = FurnitureModel.RealWorldSize(
+            width: width / 100.0,  // cm to m
+            height: height / 100.0,
+            depth: depth / 100.0
+        )
+        
+        // カテゴリを自動判定（簡易実装）
+        let category: FurnitureCategory
+        if furnitureName.contains("椅子") || furnitureName.contains("チェア") {
+            category = .chair
+        } else if furnitureName.contains("テーブル") {
+            category = .table
+        } else if furnitureName.contains("ソファ") {
+            category = .sofa
+        } else if furnitureName.contains("収納") || furnitureName.contains("棚") {
+            category = .storage
+        } else {
+            category = .test // デフォルト
+        }
+        
+        return FurnitureModel(
+            id: generatedModel.id,
+            name: generatedModel.name,
+            category: category,
+            modelFileName: generatedModel.localModelPath ?? "",
+            thumbnailFileName: generatedModel.thumbnailPath ?? "",
+            realWorldSize: realWorldSize,
+            defaultScale: 1.0,
+            maxScale: 2.0,
+            minScale: 0.5,
+            metadata: FurnitureModel.FurnitureMetadata(
+                description: "Meshy AIで生成された\(furnitureName)",
+                tags: ["生成", "カスタム", furnitureName, "meshy-generated"],
+                materialType: "3D生成",
+                weight: nil,
+                scalingStrategy: "uniform",
+                accuracyLevel: selectedQuality.rawValue
+            )
+        )
     }
     
     private func cancelGeneration() {

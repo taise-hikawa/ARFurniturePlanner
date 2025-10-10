@@ -46,7 +46,7 @@ class ARViewManager: NSObject, ObservableObject {
     
     // MARK: - Furniture Management Properties
     @Published var selectedFurnitureModel: FurnitureModel?
-    @Published var furnitureRepository = FurnitureRepository()
+    @Published var furnitureRepository = FurnitureRepository.shared
     
     // MARK: - Performance Monitoring Properties
     @Published var currentFPS: Double = 0.0

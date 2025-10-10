@@ -134,14 +134,33 @@ struct FurnitureModel: Identifiable, Codable, Equatable {
     /// 3Dモデルを非同期で読み込み（自動スケール適用機能付き）
     /// - Returns: 読み込まれたModelEntity、失敗時はnil
     func loadModel() async -> ModelEntity? {
+        print("🎯 モデル読み込み開始: \(name)")
+        print("  カテゴリ: \(category.rawValue)")
+        print("  ファイル名: \(modelFileName)")
+        print("  タグ: \(metadata?.tags ?? [])")
+        
+        // 生成されたモデルかどうかチェック
+        let isGeneratedModel = metadata?.tags?.contains("meshy-generated") ?? false ||
+                              (modelFileName.contains("-") && modelFileName.hasSuffix(".usdz"))
+        
+        print("  生成モデル判定: \(isGeneratedModel)")
+        
+        if isGeneratedModel {
+            // 生成されたモデルの場合、Documents ディレクトリから読み込み
+            if let generatedEntity = await loadGeneratedModel() {
+                return generatedEntity
+            }
+            print("生成モデルの読み込みに失敗、フォールバックを試行")
+        }
+        
         // テストカテゴリの場合は、プログラム生成モデルを使用
-        if category == .test {
+        if category == .test && !isGeneratedModel {
             return await MainActor.run {
                 return loadTestModelWithAutoScale()
             }
         }
         
-        // 通常のUSDZファイル読み込み
+        // 通常のUSDZファイル読み込み（Bundleから）
         do {
             // USDZファイルを読み込み
             let entity = try await ModelEntity(named: modelFileName)
@@ -165,6 +184,60 @@ struct FurnitureModel: Identifiable, Codable, Equatable {
             return await MainActor.run {
                 return loadTestModelWithAutoScale()
             }
+        }
+    }
+    
+    /// 生成されたモデルを Documents ディレクトリから読み込み
+    /// - Returns: 読み込まれたModelEntity、失敗時はnil
+    private func loadGeneratedModel() async -> ModelEntity? {
+        print("🔍 生成モデルの読み込みを開始: \(name)")
+        print("🔍 モデルファイル名: \(modelFileName)")
+        
+        // Documents ディレクトリの GeneratedModels フォルダから読み込み
+        guard let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            print("❌ Documents ディレクトリが見つかりません")
+            return nil
+        }
+        
+        let modelsDirectory = documentsDirectory.appendingPathComponent("GeneratedModels")
+        let modelURL = modelsDirectory.appendingPathComponent(modelFileName)
+        
+        print("🔍 モデルファイルの完全パス: \(modelURL.path)")
+        
+        // ディレクトリの内容を確認（デバッグ用）
+        do {
+            let contents = try FileManager.default.contentsOfDirectory(at: modelsDirectory, includingPropertiesForKeys: nil)
+            print("🔍 GeneratedModels ディレクトリの内容: \(contents.map { $0.lastPathComponent })")
+        } catch {
+            print("⚠️ GeneratedModels ディレクトリの読み込みエラー: \(error)")
+        }
+        
+        // ファイルの存在を確認
+        guard FileManager.default.fileExists(atPath: modelURL.path) else {
+            print("❌ 生成されたモデルファイルが存在しません: \(modelURL.path)")
+            return nil
+        }
+        
+        print("✅ モデルファイルが存在します")
+        
+        do {
+            // モデルを読み込み
+            let entity = try await ModelEntity(contentsOf: modelURL)
+            
+            // 自動スケール適用
+            let scaleResult = await applyAutoScale(to: entity)
+            
+            // コリジョン形状を設定（タップ検出用）
+            await entity.generateCollisionShapes(recursive: true)
+            
+            print("✅ 生成モデル読み込み成功: \(name) from \(modelURL.lastPathComponent)")
+            print("📐 スケール適用結果: \(scaleResult.report)")
+            
+            return entity
+            
+        } catch {
+            print("❌ 生成モデル読み込み失敗: \(name) - \(error.localizedDescription)")
+            return nil
         }
     }
     
