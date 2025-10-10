@@ -182,6 +182,29 @@
         "scalingStrategy": "uniform",
         "accuracyLevel": "high"
       }
+    },
+    {
+      "id": "chair_texture_001",
+      "name": "テクスチャ付きチェア",
+      "category": "椅子",
+      "modelFileName": "chair_texture_by_meshy.usdz",
+      "thumbnailFileName": "chair_texture_thumb.jpg",
+      "realWorldSize": {
+        "width": 0.5,
+        "height": 0.85,
+        "depth": 0.5
+      },
+      "defaultScale": 1.0,
+      "maxScale": 1.5,
+      "minScale": 0.7,
+      "metadata": {
+        "description": "Meshyで作成されたテクスチャ付きチェア",
+        "tags": ["椅子", "テクスチャ", "モダン"],
+        "materialType": "ファブリック",
+        "weight": 7.0,
+        "scalingStrategy": "uniform",
+        "accuracyLevel": "high"
+      }
     }
   ]
 }
