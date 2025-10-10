@@ -32,6 +32,7 @@ class MeshyAPIService: ObservableObject {
     private init() {
         loadAPIKey()
         loadGenerationHistory()
+        loadActiveTasks()
     }
     
     // MARK: - API Key Management
@@ -178,6 +179,9 @@ class MeshyAPIService: ObservableObject {
                 sourceImage: image,
                 settings: settings
             )
+            
+            // アクティブタスクを永続化
+            self.saveActiveTasks()
         }
         
         // タスクの進捗を監視開始
@@ -232,6 +236,9 @@ class MeshyAPIService: ObservableObject {
                 // 監視を停止
                 self.stopMonitoringTask(taskId: taskData.id)
                 
+                // アクティブタスクを更新して永続化
+                self.saveActiveTasks()
+                
                 if taskData.status == .succeeded {
                     self.generationHistory.insert(taskData, at: 0)
                     self.saveGenerationHistory()
@@ -242,7 +249,12 @@ class MeshyAPIService: ObservableObject {
                     }
                 } else if taskData.status == .failed {
                     print("タスク失敗: \(taskData.taskError ?? "Unknown error")")
+                    // 失敗したタスクの情報もクリーンアップ
+                    self.taskGenerationInfo.removeValue(forKey: taskData.id)
                 }
+            } else {
+                // 進行中のタスクも永続化を更新
+                self.saveActiveTasks()
             }
         }
         
@@ -276,6 +288,8 @@ class MeshyAPIService: ObservableObject {
         // アクティブタスクから削除と監視停止
         DispatchQueue.main.async {
             self.activeTasks.removeValue(forKey: taskId)
+            self.taskGenerationInfo.removeValue(forKey: taskId)
+            self.saveActiveTasks()
             self.stopMonitoringTask(taskId: taskId)
         }
     }
@@ -425,5 +439,67 @@ class MeshyAPIService: ObservableObject {
     func clearHistory() {
         generationHistory.removeAll()
         UserDefaults.standard.removeObject(forKey: "MeshyGenerationHistory")
+    }
+    
+    // MARK: - Active Tasks Persistence
+    
+    private func loadActiveTasks() {
+        // アクティブタスクを読み込む
+        if let data = UserDefaults.standard.data(forKey: "MeshyActiveTasks") {
+            let decoder = JSONDecoder()
+            if let tasks = try? decoder.decode([String: MeshyTaskData].self, from: data) {
+                activeTasks = tasks
+                
+                // 読み込んだタスクの監視を再開
+                for (taskId, task) in tasks {
+                    // 完了していないタスクのみ監視を再開
+                    if !task.status.isCompleted {
+                        // タスク情報を復元（名前のみ、画像やsettingsは復元不可）
+                        let taskName = task.name ?? "復元されたタスク"
+                        startMonitoringTask(taskId: taskId, furnitureName: taskName)
+                    }
+                }
+            }
+        }
+        
+        // タスク生成情報も復元（シンプル化のため基本情報のみ）
+        if let infoData = UserDefaults.standard.data(forKey: "MeshyTaskGenerationInfo") {
+            let decoder = JSONDecoder()
+            if let info = try? decoder.decode([String: SimpleTaskInfo].self, from: infoData) {
+                for (taskId, simpleInfo) in info {
+                    taskGenerationInfo[taskId] = TaskGenerationInfo(
+                        furnitureName: simpleInfo.furnitureName,
+                        sourceImage: nil, // 画像は復元不可
+                        settings: simpleInfo.settings
+                    )
+                }
+            }
+        }
+    }
+    
+    private func saveActiveTasks() {
+        let encoder = JSONEncoder()
+        if let data = try? encoder.encode(activeTasks) {
+            UserDefaults.standard.set(data, forKey: "MeshyActiveTasks")
+        }
+        
+        // タスク生成情報も保存（シンプル化のため基本情報のみ）
+        var simpleTaskInfo: [String: SimpleTaskInfo] = [:]
+        for (taskId, info) in taskGenerationInfo {
+            simpleTaskInfo[taskId] = SimpleTaskInfo(
+                furnitureName: info.furnitureName,
+                settings: info.settings
+            )
+        }
+        
+        if let infoData = try? encoder.encode(simpleTaskInfo) {
+            UserDefaults.standard.set(infoData, forKey: "MeshyTaskGenerationInfo")
+        }
+    }
+    
+    // タスク情報の永続化用構造体
+    private struct SimpleTaskInfo: Codable {
+        let furnitureName: String
+        let settings: GenerationSettings
     }
 }

@@ -202,7 +202,7 @@ enum MeshyAPIError: LocalizedError {
 }
 
 // MARK: - Generation Settings
-struct GenerationSettings {
+struct GenerationSettings: Codable {
     let style: GenerationStyle
     let quality: GenerationQuality
     let enablePBR: Bool
@@ -212,7 +212,7 @@ struct GenerationSettings {
     let symmetryMode: SymmetryMode?
     let texturePrompt: String?
     
-    enum GenerationStyle: String, CaseIterable {
+    enum GenerationStyle: String, CaseIterable, Codable {
         case realistic = "realistic"
         case stylized = "stylized"
         case lowPoly = "low_poly"
@@ -237,7 +237,7 @@ struct GenerationSettings {
         }
     }
     
-    enum GenerationQuality: String, CaseIterable {
+    enum GenerationQuality: String, CaseIterable, Codable {
         case draft = "draft"
         case standard = "standard"
         case high = "high"
@@ -259,7 +259,7 @@ struct GenerationSettings {
         }
     }
     
-    enum SymmetryMode: String {
+    enum SymmetryMode: String, Codable {
         case none = "none"
         case x = "x"
         case y = "y"
