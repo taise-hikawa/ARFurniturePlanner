@@ -19,6 +19,7 @@ struct ImageTo3DGenerationView: View {
     @State private var estimatedHeight: String = "80"
     @State private var estimatedDepth: String = "50"
     @State private var showingImagePicker = false
+    @State private var showingImageSourceSelection = false
     @State private var isGenerating = false
     @State private var generationProgress: Double = 0
     @State private var generationStatus = "準備中..."
@@ -49,7 +50,7 @@ struct ImageTo3DGenerationView: View {
                                     .cornerRadius(12)
                                 
                                 Button(action: {
-                                    showingImagePicker = true
+                                    showingImageSourceSelection = true
                                 }) {
                                     Label("変更", systemImage: "pencil.circle.fill")
                                         .font(.caption)
@@ -62,7 +63,7 @@ struct ImageTo3DGenerationView: View {
                             }
                         } else {
                             Button(action: {
-                                showingImagePicker = true
+                                showingImageSourceSelection = true
                             }) {
                                 VStack(spacing: 16) {
                                     Image(systemName: "photo.on.rectangle.angled")
@@ -232,8 +233,11 @@ struct ImageTo3DGenerationView: View {
                     .disabled(selectedImage == nil || furnitureName.isEmpty || isGenerating)
                 }
             }
-            .sheet(isPresented: $showingImagePicker) {
-                ImagePicker(selectedImage: $selectedImage)
+            .sheet(isPresented: $showingImageSourceSelection) {
+                ImageSourceSelectionView(
+                    isPresented: $showingImageSourceSelection,
+                    selectedImage: $selectedImage
+                )
             }
             .sheet(isPresented: $showingAPISettings) {
                 MeshyAPISettingsView()
