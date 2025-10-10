@@ -241,7 +241,7 @@ class MeshyAPIService: ObservableObject {
                         await self.handleSuccessfulGeneration(task: taskData)
                     }
                 } else if taskData.status == .failed {
-                    print("タスク失敗: \(taskData.taskError?.message ?? "Unknown error")")
+                    print("タスク失敗: \(taskData.taskError ?? "Unknown error")")
                 }
             }
         }
