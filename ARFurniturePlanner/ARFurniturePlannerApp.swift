@@ -13,7 +13,7 @@ import RealityKit
 struct ARFurniturePlannerApp: App {
     var body: some SwiftUI.Scene {
         WindowGroup {
-            ContentView()
+            FurnitureManagementView()
         }
     }
 }
